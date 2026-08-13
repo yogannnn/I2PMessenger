@@ -1,13 +1,13 @@
 package ru.servertronix.i2pmessenger.data.local
 
+import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import android.content.Context
 
 @Database(
     entities = [ContactEntity::class, MessageEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,7 +24,8 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "i2p_messenger_db"
-                ).build()
+                ).fallbackToDestructiveMigration() // для сброса при изменении схемы
+                 .build()
                 INSTANCE = instance
                 instance
             }

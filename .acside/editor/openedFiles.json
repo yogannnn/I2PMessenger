@@ -5,13 +5,13 @@
       "selection": {
         "end": {
           "column": 1,
-          "index": 179,
-          "line": 7
+          "index": 212,
+          "line": 8
         },
         "start": {
           "column": 1,
-          "index": 179,
-          "line": 7
+          "index": 212,
+          "line": 8
         }
       }
     },
@@ -94,14 +94,14 @@
       "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/ChatActivity.kt",
       "selection": {
         "end": {
-          "column": 1,
-          "index": 6154,
-          "line": 180
+          "column": 80,
+          "index": 4894,
+          "line": 129
         },
         "start": {
-          "column": 1,
-          "index": 6154,
-          "line": 180
+          "column": 80,
+          "index": 4894,
+          "line": 129
         }
       }
     },
@@ -224,7 +224,67 @@
           "line": 0
         }
       }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/data/local/MessageEntity.kt",
+      "selection": {
+        "end": {
+          "column": 1,
+          "index": 471,
+          "line": 15
+        },
+        "start": {
+          "column": 1,
+          "index": 471,
+          "line": 15
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/MessageDao.kt",
+      "selection": {
+        "end": {
+          "column": 1,
+          "index": 700,
+          "line": 21
+        },
+        "start": {
+          "column": 1,
+          "index": 700,
+          "line": 21
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/AppDatabase.kt",
+      "selection": {
+        "end": {
+          "column": 1,
+          "index": 1007,
+          "line": 33
+        },
+        "start": {
+          "column": 1,
+          "index": 1007,
+          "line": 33
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/data/repository/MessageRepository.kt",
+      "selection": {
+        "end": {
+          "column": 1,
+          "index": 1242,
+          "line": 42
+        },
+        "start": {
+          "column": 1,
+          "index": 1242,
+          "line": 42
+        }
+      }
     }
   ],
-  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/layout/activity_chat.xml"
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/Message.kt"
 }

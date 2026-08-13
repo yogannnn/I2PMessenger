@@ -8,9 +8,14 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import ru.servertronix.i2pmessenger.data.local.AppDatabase
+import ru.servertronix.i2pmessenger.data.repository.MessageRepository
 import java.security.MessageDigest
 
 class ChatActivity : AppCompatActivity() {
@@ -28,6 +33,7 @@ class ChatActivity : AppCompatActivity() {
     private var contactName: String = ""
     private var contactAddress: String = ""
     private var myAddress: String = ""
+    private lateinit var messageRepository: MessageRepository
 
     private val messageListener: (sender: String, message: String) -> Unit = { sender, msg ->
         runOnUiThread {
@@ -35,7 +41,7 @@ class ChatActivity : AppCompatActivity() {
             val cleanSender = senderBase32.removeSuffix(".b32.i2p")
             val cleanMyAddress = myAddress.removeSuffix(".b32.i2p")
             val isMine = cleanSender == cleanMyAddress
-            addMessage(msg, isMine)
+            addMessage(msg, isMine, saveToDb = true)
         }
     }
 
@@ -47,6 +53,11 @@ class ChatActivity : AppCompatActivity() {
         contactAddress = intent.getStringExtra("contact_address") ?: ""
         myAddress = I2PManager.getMyAddress()
 
+        // --- ИНИЦИАЛИЗАЦИЯ ROOM ---
+        val db = AppDatabase.getInstance(this)
+        messageRepository = MessageRepository(db)
+
+        // --- ТУЛБАР ---
         toolbar = findViewById(R.id.toolbar)
         tvContactName = findViewById(R.id.tvContactName)
         tvOnlineStatus = findViewById(R.id.tvOnlineStatus)
@@ -59,6 +70,7 @@ class ChatActivity : AppCompatActivity() {
         tvContactName.text = contactName
         updateOnlineStatus(true)
 
+        // --- СПИСОК СООБЩЕНИЙ ---
         rvMessages = findViewById(R.id.rvMessages)
         etMessage = findViewById(R.id.etMessage)
         btnSend = findViewById(R.id.btnSend)
@@ -67,20 +79,55 @@ class ChatActivity : AppCompatActivity() {
         rvMessages.layoutManager = LinearLayoutManager(this)
         rvMessages.adapter = adapter
 
+        // --- ЗАГРУЗКА ИСТОРИИ ---
+        lifecycleScope.launch {
+            messageRepository.getMessagesForChat(contactAddress).collectLatest { history ->
+                messages.clear()
+                messages.addAll(history)
+                adapter.updateMessages(messages)
+                rvMessages.scrollToPosition(messages.size - 1)
+            }
+        }
+
         I2PManager.addMessageListener(messageListener)
 
+        // --- ОТПРАВКА ---
         btnSend.setOnClickListener {
             val msg = etMessage.text.toString().trim()
             if (msg.isNotEmpty()) {
-                addMessage(msg, true)
+                val message = Message(
+                    id = System.currentTimeMillis().toString(),
+                    text = msg,
+                    timestamp = System.currentTimeMillis(),
+                    isMine = true
+                )
+                addMessage(msg, true, saveToDb = true)
                 etMessage.text.clear()
                 I2PManager.sendMessage(contactAddress, msg) { success ->
                     if (!success) {
                         runOnUiThread {
-                            // можно пометить как неотправленное
+                            // можно пометить как FAILED
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private fun addMessage(text: String, isMine: Boolean, saveToDb: Boolean = false) {
+        val message = Message(
+            id = System.currentTimeMillis().toString(),
+            text = text,
+            timestamp = System.currentTimeMillis(),
+            isMine = isMine
+        )
+        messages.add(message)
+        adapter.updateMessages(messages)
+        rvMessages.scrollToPosition(messages.size - 1)
+
+        if (saveToDb) {
+            lifecycleScope.launch {
+                messageRepository.saveMessage(message, contactAddress, myAddress)
             }
         }
     }
@@ -92,20 +139,7 @@ class ChatActivity : AppCompatActivity() {
         )
     }
 
-    private fun addMessage(text: String, isMine: Boolean) {
-        val message = Message(
-            id = System.currentTimeMillis().toString(),
-            text = text,
-            timestamp = System.currentTimeMillis(),
-            isMine = isMine
-        )
-        messages.add(message)
-        adapter.updateMessages(messages)
-        rvMessages.scrollToPosition(messages.size - 1)
-    }
-
-    // ========== МЕНЮ ==========
-
+    // --- МЕНЮ ---
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_chat, menu)
         return true
@@ -120,22 +154,24 @@ class ChatActivity : AppCompatActivity() {
             R.id.action_clear_chat -> {
                 messages.clear()
                 adapter.updateMessages(messages)
+                lifecycleScope.launch {
+                    messageRepository.deleteMessagesForChat(contactAddress)
+                }
                 true
             }
             R.id.action_block -> {
-                // TODO: блокировка контакта
+                // TODO
                 true
             }
             R.id.action_delete_contact -> {
-                // TODO: удаление контакта
+                // TODO
                 true
             }
             else -> super.onOptionsItemSelected(item)
         }
     }
 
-    // ========== ПРЕОБРАЗОВАНИЯ ==========
-
+    // --- ПРЕОБРАЗОВАНИЯ ---
     private fun extractBase32FromBase64(base64: String): String {
         val clean = base64.trim()
         var standardBase64 = clean

@@ -34,13 +34,15 @@ public final class MessageDao_Impl implements MessageDao {
 
   private final SharedSQLiteStatement __preparedStmtOfDeleteMessagesForChat;
 
+  private final SharedSQLiteStatement __preparedStmtOfDeleteMessage;
+
   public MessageDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
     this.__insertionAdapterOfMessageEntity = new EntityInsertionAdapter<MessageEntity>(__db) {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `messages` (`id`,`chatId`,`senderId`,`text`,`timestamp`,`status`) VALUES (nullif(?, 0),?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `messages` (`id`,`chatId`,`senderId`,`text`,`timestamp`,`isMine`,`status`) VALUES (nullif(?, 0),?,?,?,?,?,?)";
       }
 
       @Override
@@ -51,7 +53,9 @@ public final class MessageDao_Impl implements MessageDao {
         statement.bindString(3, entity.getSenderId());
         statement.bindString(4, entity.getText());
         statement.bindLong(5, entity.getTimestamp());
-        statement.bindString(6, entity.getStatus());
+        final int _tmp = entity.isMine() ? 1 : 0;
+        statement.bindLong(6, _tmp);
+        statement.bindString(7, entity.getStatus());
       }
     };
     this.__preparedStmtOfDeleteMessagesForChat = new SharedSQLiteStatement(__db) {
@@ -59,6 +63,14 @@ public final class MessageDao_Impl implements MessageDao {
       @NonNull
       public String createQuery() {
         final String _query = "DELETE FROM messages WHERE chatId = ?";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfDeleteMessage = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "DELETE FROM messages WHERE id = ?";
         return _query;
       }
     };
@@ -110,6 +122,31 @@ public final class MessageDao_Impl implements MessageDao {
   }
 
   @Override
+  public Object deleteMessage(final long id, final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteMessage.acquire();
+        int _argIndex = 1;
+        _stmt.bindLong(_argIndex, id);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfDeleteMessage.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
   public Flow<List<MessageEntity>> getMessagesForChat(final String chatId) {
     final String _sql = "SELECT * FROM messages WHERE chatId = ? ORDER BY timestamp ASC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
@@ -126,12 +163,13 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfSenderId = CursorUtil.getColumnIndexOrThrow(_cursor, "senderId");
           final int _cursorIndexOfText = CursorUtil.getColumnIndexOrThrow(_cursor, "text");
           final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
+          final int _cursorIndexOfIsMine = CursorUtil.getColumnIndexOrThrow(_cursor, "isMine");
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final List<MessageEntity> _result = new ArrayList<MessageEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final MessageEntity _item;
-            final int _tmpId;
-            _tmpId = _cursor.getInt(_cursorIndexOfId);
+            final long _tmpId;
+            _tmpId = _cursor.getLong(_cursorIndexOfId);
             final String _tmpChatId;
             _tmpChatId = _cursor.getString(_cursorIndexOfChatId);
             final String _tmpSenderId;
@@ -140,9 +178,13 @@ public final class MessageDao_Impl implements MessageDao {
             _tmpText = _cursor.getString(_cursorIndexOfText);
             final long _tmpTimestamp;
             _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
+            final boolean _tmpIsMine;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsMine);
+            _tmpIsMine = _tmp != 0;
             final String _tmpStatus;
             _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
-            _item = new MessageEntity(_tmpId,_tmpChatId,_tmpSenderId,_tmpText,_tmpTimestamp,_tmpStatus);
+            _item = new MessageEntity(_tmpId,_tmpChatId,_tmpSenderId,_tmpText,_tmpTimestamp,_tmpIsMine,_tmpStatus);
             _result.add(_item);
           }
           return _result;
