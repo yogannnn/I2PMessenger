@@ -3040,6 +3040,8 @@ drawable abc_textfield_search_material
 drawable abc_vector_test
 drawable avd_hide_password
 drawable avd_show_password
+drawable bg_message_mine
+drawable bg_message_other
 drawable btn_checkbox_checked_mtrl
 drawable btn_checkbox_checked_to_unchecked_mtrl_animation
 drawable btn_checkbox_unchecked_mtrl
@@ -3083,6 +3085,8 @@ drawable ic_search_black_24
 drawable ic_send
 drawable ic_settings
 drawable indeterminate_static
+drawable indicator_offline
+drawable indicator_online
 drawable m3_avd_hide_password
 drawable m3_avd_show_password
 drawable m3_bottom_sheet_drag_handle
@@ -3216,8 +3220,11 @@ id action_bar_root
 id action_bar_spinner
 id action_bar_subtitle
 id action_bar_title
+id action_block
+id action_clear_chat
 id action_container
 id action_context_bar
+id action_delete_contact
 id action_divider
 id action_image
 id action_menu_divider
@@ -3392,6 +3399,7 @@ id image
 id immediateStop
 id included
 id indeterminate
+id indicatorOnline
 id info
 id invisible
 id inward
@@ -3548,6 +3556,7 @@ id rounded
 id row_index_key
 id rtl
 id rvContacts
+id rvMessages
 id save_non_transition_alpha
 id save_overlay_view
 id sawtooth
@@ -3663,9 +3672,11 @@ id transition_transform
 id triangle
 id tvContactAddress
 id tvContactName
-id tvLog
+id tvMessageText
+id tvMessageTime
 id tvMyAddress
 id tvMyBase64
+id tvOnlineStatus
 id tvStatus
 id unchecked
 id uniform
@@ -3828,6 +3839,8 @@ layout dialog_add_contact
 layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity
 layout item_contact
+layout item_message_mine
+layout item_message_other
 layout m3_alert_dialog
 layout m3_alert_dialog_actions
 layout m3_alert_dialog_title
@@ -3891,6 +3904,7 @@ layout select_dialog_item_material
 layout select_dialog_multichoice_material
 layout select_dialog_singlechoice_material
 layout support_simple_spinner_dropdown_item
+menu menu_chat
 menu menu_drawer
 mipmap ic_launcher
 mipmap ic_launcher_round
@@ -4391,6 +4405,7 @@ style Platform_V21_AppCompat_Light
 style Platform_V25_AppCompat
 style Platform_V25_AppCompat_Light
 style Platform_Widget_AppCompat_Spinner
+style PopupMenuStyle
 style RtlOverlay_DialogWindowTitle_AppCompat
 style RtlOverlay_Widget_AppCompat_ActionBar_TitleItem
 style RtlOverlay_Widget_AppCompat_DialogTitle_Icon

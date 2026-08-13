@@ -10,4 +10,10 @@
         <item name="android:windowBackground">@color/light_gray</item>
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
     </style>
+    <style name="PopupMenuStyle" parent="ThemeOverlay.AppCompat.Light">
+        <item name="android:popupBackground">@color/white</item>
+        <item name="android:textColor">@color/black</item>
+        <item name="android:itemTextAppearance">@style/TextAppearance.AppCompat.Medium</item>
+        <item name="android:itemBackground">@color/white</item>
+    </style>
 </resources>

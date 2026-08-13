@@ -1,21 +1,43 @@
 package ru.servertronix.i2pmessenger
 
 import android.os.Bundle
-import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.appbar.MaterialToolbar
 import java.security.MessageDigest
 
 class ChatActivity : AppCompatActivity() {
 
-    private lateinit var tvLog: TextView
+    private lateinit var rvMessages: RecyclerView
     private lateinit var etMessage: EditText
     private lateinit var btnSend: Button
+    private lateinit var adapter: MessageAdapter
+    private lateinit var toolbar: MaterialToolbar
+    private lateinit var tvContactName: TextView
+    private lateinit var tvOnlineStatus: TextView
+    private lateinit var indicatorOnline: View
 
+    private val messages = mutableListOf<Message>()
     private var contactName: String = ""
     private var contactAddress: String = ""
+    private var myAddress: String = ""
+
+    private val messageListener: (sender: String, message: String) -> Unit = { sender, msg ->
+        runOnUiThread {
+            val senderBase32 = extractBase32FromBase64(sender)
+            val cleanSender = senderBase32.removeSuffix(".b32.i2p")
+            val cleanMyAddress = myAddress.removeSuffix(".b32.i2p")
+            val isMine = cleanSender == cleanMyAddress
+            addMessage(msg, isMine)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,25 +45,39 @@ class ChatActivity : AppCompatActivity() {
 
         contactName = intent.getStringExtra("contact_name") ?: "Чат"
         contactAddress = intent.getStringExtra("contact_address") ?: ""
+        myAddress = I2PManager.getMyAddress()
 
-        supportActionBar?.title = contactName
+        toolbar = findViewById(R.id.toolbar)
+        tvContactName = findViewById(R.id.tvContactName)
+        tvOnlineStatus = findViewById(R.id.tvOnlineStatus)
+        indicatorOnline = findViewById(R.id.indicatorOnline)
+
+        setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
 
-        tvLog = findViewById(R.id.tvLog)
+        tvContactName.text = contactName
+        updateOnlineStatus(true)
+
+        rvMessages = findViewById(R.id.rvMessages)
         etMessage = findViewById(R.id.etMessage)
         btnSend = findViewById(R.id.btnSend)
+
+        adapter = MessageAdapter(messages)
+        rvMessages.layoutManager = LinearLayoutManager(this)
+        rvMessages.adapter = adapter
 
         I2PManager.addMessageListener(messageListener)
 
         btnSend.setOnClickListener {
             val msg = etMessage.text.toString().trim()
             if (msg.isNotEmpty()) {
-                tvLog.append("Вы: $msg\n")
+                addMessage(msg, true)
                 etMessage.text.clear()
                 I2PManager.sendMessage(contactAddress, msg) { success ->
                     if (!success) {
                         runOnUiThread {
-                            tvLog.append("❌ Ошибка отправки\n")
+                            // можно пометить как неотправленное
                         }
                     }
                 }
@@ -49,20 +85,56 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
-    private val messageListener: (sender: String, message: String) -> Unit = { sender, msg ->
-        runOnUiThread {
-            val senderBase32 = extractBase32FromBase64(sender)
-            // Убираем .b32.i2p для сравнения
-            val cleanContactAddress = contactAddress.removeSuffix(".b32.i2p")
-            val cleanSender = senderBase32.removeSuffix(".b32.i2p")
-            val displayName = if (cleanSender == cleanContactAddress) {
-                contactName
-            } else {
-                senderBase32.take(20) + "..."
+    private fun updateOnlineStatus(isOnline: Boolean) {
+        tvOnlineStatus.text = if (isOnline) "Онлайн" else "Офлайн"
+        indicatorOnline.setBackgroundResource(
+            if (isOnline) R.drawable.indicator_online else R.drawable.indicator_offline
+        )
+    }
+
+    private fun addMessage(text: String, isMine: Boolean) {
+        val message = Message(
+            id = System.currentTimeMillis().toString(),
+            text = text,
+            timestamp = System.currentTimeMillis(),
+            isMine = isMine
+        )
+        messages.add(message)
+        adapter.updateMessages(messages)
+        rvMessages.scrollToPosition(messages.size - 1)
+    }
+
+    // ========== МЕНЮ ==========
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_chat, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            android.R.id.home -> {
+                finish()
+                true
             }
-            tvLog.append("$displayName: $msg\n")
+            R.id.action_clear_chat -> {
+                messages.clear()
+                adapter.updateMessages(messages)
+                true
+            }
+            R.id.action_block -> {
+                // TODO: блокировка контакта
+                true
+            }
+            R.id.action_delete_contact -> {
+                // TODO: удаление контакта
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
         }
     }
+
+    // ========== ПРЕОБРАЗОВАНИЯ ==========
 
     private fun extractBase32FromBase64(base64: String): String {
         val clean = base64.trim()
