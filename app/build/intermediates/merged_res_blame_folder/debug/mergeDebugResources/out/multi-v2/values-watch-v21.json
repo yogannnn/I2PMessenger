@@ -1,0 +1,20 @@
+{
+    "logs": [
+        {
+            "outputFile": "ru.servertronix.i2pmessenger.app-mergeDebugResources-50:/values-watch-v21/values-watch-v21.xml",
+            "map": [
+                {
+                    "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/caches/9.3.1/transforms/439e879a79a28e61abc855c67b878534/transformed/appcompat-1.7.0/res/values-watch-v21/values-watch-v21.xml",
+                    "from": {
+                        "startLines": "2,6,10",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "55,271,499",
+                        "endLines": "5,9,13",
+                        "endColumns": "12,12,12",
+                        "endOffsets": "266,494,724"
+                    }
+                }
+            ]
+        }
+    ]
+}
