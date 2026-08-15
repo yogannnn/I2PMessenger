@@ -31,9 +31,9 @@ class I2PManager(
         private const val PREF_PUBLIC = "public_destination"
         private const val PREF_PRIVATE = "private_destination"
         private const val MAX_MESSAGE_SIZE = SamConnection.MAX_MESSAGE_SIZE
-        private const val INITIAL_RECONNECT_DELAY_MS = 2_000L
-        private const val MAX_RECONNECT_DELAY_MS = 30_000L
-        private const val ACCEPT_FAILURE_THRESHOLD = 3
+        private const val INITIAL_RECONNECT_DELAY_MS = 5_000L
+        private const val MAX_RECONNECT_DELAY_MS = 60_000L
+        private const val ACCEPT_FAILURE_THRESHOLD = 5
 
         @Volatile
         private var singleton: I2PManager? = null
@@ -100,7 +100,6 @@ class I2PManager(
     private var samConnection = SamConnection()
 
     private val connected = AtomicBoolean(false)
-    private val reconnectInProgress = AtomicBoolean(false)
     private val sessionCreated = AtomicBoolean(false)
     @Volatile private var sessionId: String = ""
 
@@ -110,7 +109,6 @@ class I2PManager(
 
     private val sessionMutex = Mutex()
     private val started = AtomicBoolean(false)
-    private val reconnectRequested = AtomicBoolean(false)
 
     @Volatile private var privateDestination: String? = null
     @Volatile private var publicDestination: String? = null
@@ -187,11 +185,9 @@ class I2PManager(
 
                 try {
                     if (establishSession()) {
-                        // establishSession() is authoritative. Once the new
-                        // control socket + STREAM session + ACCEPT loop are
-                        // ready, keep them. Do not immediately tear them down
-                        // just because a previous failure requested reconnect.
-                        reconnectRequested.set(false)
+                        // A successful establishSession() owns the single
+                        // long-lived SAM STREAM session until the SAM control
+                        // socket actually dies or the service is stopped.
                         setState(I2PConnectionState.Connected)
                         Log.d(TAG, "🟢 SAM/I2P session established")
                         break
@@ -220,8 +216,6 @@ class I2PManager(
 
         reconnectJob?.cancel()
         reconnectJob = null
-        reconnectRequested.set(false)
-
         acceptLoopRunning.set(false)
         samConnection.closeActiveAcceptSocket()
         acceptJob?.cancel()
@@ -283,6 +277,7 @@ class I2PManager(
                 val privateKey = privateDestination ?: return@withLock false
 
                 if (!newSam.createStreamSession(newId, privateKey)) {
+                    Log.e(TAG, "❌ SESSION CREATE failed; keeping this attempt isolated and retrying with backoff")
                     return@withLock false
                 }
 
@@ -307,7 +302,10 @@ class I2PManager(
         if (!started.get() || !scope.isActive) return
 
         Log.w(TAG, "🔄 reconnect requested: $reason")
-        reconnectRequested.set(true)
+        // Do not recreate a SAM session because an individual STREAM
+        // CONNECT/ACCEPT socket failed. A reconnect is requested only by
+        // code that has established that the long-lived control socket is
+        // actually unusable.
         connected.set(false)
         sessionCreated.set(false)
         setState(I2PConnectionState.Connecting)
@@ -341,69 +339,6 @@ class I2PManager(
 
         Log.d(TAG, "🔍 [IM] ✅ Destination сгенерирован")
         return true
-    }
-
-    // =====================================================================
-    // CREATE SESSION
-    // =====================================================================
-
-    private suspend fun createFullSession(): Boolean {
-        Log.d(TAG, "🔍 [IM] ===== createFullSession() START =====")
-
-        if (connected.get() && sessionCreated.get()) {
-            Log.d(TAG, "🔍 [IM] Already created")
-            return true
-        }
-
-        sessionMutex.withLock {
-            Log.d(TAG, "🔍 [IM] Starting full session creation...")
-
-            val sam = samConnection
-
-            Log.d(TAG, "🔍 [IM] [STEP1] Connecting to SAM...")
-            if (!sam.connect()) {
-                Log.e(TAG, "🔍 [IM] ❌ SAM connect failed")
-                return false
-            }
-            Log.d(TAG, "🔍 [IM] [STEP1] ✅ connected")
-
-            Log.d(TAG, "🔍 [IM] [STEP2] HELLO...")
-            val helloResponse = sam.hello()
-            if (!isOk(helloResponse)) {
-                Log.e(TAG, "🔍 [IM] ❌ HELLO failed")
-                return false
-            }
-            Log.d(TAG, "🔍 [IM] [STEP2] ✅ HELLO OK")
-
-            Log.d(TAG, "🔍 [IM] [STEP3] Ensuring destination...")
-            if (!ensureDestinationWithSam(sam)) {
-                Log.e(TAG, "🔍 [IM] ❌ Destination failed")
-                return false
-            }
-            Log.d(TAG, "🔍 [IM] [STEP3] ✅ destination OK")
-
-            sessionId = newSessionId()
-            Log.d(TAG, "🔍 [IM] [STEP4] Creating STREAM session: $sessionId")
-
-            val sessionOk = sam.createStreamSession(
-                sessionId,
-                privateDestination ?: return false
-            )
-
-            if (!sessionOk) {
-                Log.e(TAG, "🔍 [IM] ❌ SESSION CREATE failed")
-                return false
-            }
-
-            Log.d(TAG, "🔍 [IM] [STEP4] ✅ SESSION CREATE OK")
-
-            sessionCreated.set(true)
-            setConnected(true)
-            startAcceptLoop()
-
-            Log.d(TAG, "🔍 [IM] ✅ Full session created")
-            return true
-        }
     }
 
     // =====================================================================

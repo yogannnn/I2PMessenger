@@ -1599,28 +1599,90 @@ class PresenceManager(
 ===== FILE: app/src/main/kotlin/ru/servertronix/i2pmessenger/ProfileActivity.kt =====
 package ru.servertronix.i2pmessenger
 
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import ru.servertronix.i2pmessenger.data.local.AppDatabase
+import ru.servertronix.i2pmessenger.data.repository.ContactRepository
 import ru.servertronix.i2pmessenger.i2p.I2PManager
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-class ProfileActivity : AppCompatActivity() {  // ← ВАЖНО: наследуемся от AppCompatActivity
+class ProfileActivity : AppCompatActivity() {
 
     private lateinit var tvMyAddress: TextView
     private lateinit var tvMyBase64: TextView
     private lateinit var tvStatus: TextView
+    private lateinit var statusIndicator: View
     private lateinit var btnCopyAddress: Button
     private lateinit var btnShareAddress: Button
+    private lateinit var btnExportIdentity: Button
+    private lateinit var btnImportIdentity: Button
+    private lateinit var btnExportContacts: Button
+    private lateinit var btnImportContacts: Button
     private lateinit var btnBack: Button
+
+    // =====================================================================
+    // SAF LAUNCHERS
+    // =====================================================================
+
+    private val saveIdentityLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            doExportIdentity(uri)
+        } else {
+            Toast.makeText(this, "Экспорт отменён", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val openIdentityLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            doImportIdentity(uri)
+        } else {
+            Toast.makeText(this, "Импорт отменён", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val saveContactsLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            doExportContacts(uri)
+        } else {
+            Toast.makeText(this, "Экспорт контактов отменён", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val openContactsLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            doImportContacts(uri)
+        } else {
+            Toast.makeText(this, "Импорт контактов отменён", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1629,40 +1691,36 @@ class ProfileActivity : AppCompatActivity() {  // ← ВАЖНО: наследу
         tvMyAddress = findViewById(R.id.tvMyAddress)
         tvMyBase64 = findViewById(R.id.tvMyBase64)
         tvStatus = findViewById(R.id.tvStatus)
+        statusIndicator = findViewById(R.id.statusIndicator)
         btnCopyAddress = findViewById(R.id.btnCopyAddress)
         btnShareAddress = findViewById(R.id.btnShareAddress)
+        btnExportIdentity = findViewById(R.id.btnExportIdentity)
+        btnImportIdentity = findViewById(R.id.btnImportIdentity)
+        btnExportContacts = findViewById(R.id.btnExportContacts)
+        btnImportContacts = findViewById(R.id.btnImportContacts)
         btnBack = findViewById(R.id.btnBack)
 
-        // Показываем адрес (один раз)
         val base32 = I2PManager.getMyAddress()
         tvMyAddress.text = if (base32.isNotEmpty()) base32 else "Не удалось получить адрес"
         val base64 = I2PManager.getMyPublicKey()
-        tvMyBase64.text = base64 ?: "Ключ пока недоступен"
+        tvMyBase64.text = base64 ?: "Ключ недоступен"
 
-        // --- ПОДПИСКА НА СОСТОЯНИЕ I2P ---
         lifecycleScope.launch {
             I2PManager.state.collectLatest { state ->
-                when (state) {
-                    is I2PConnectionState.Connected -> {
-                        tvStatus.text = "🟢 Онлайн"
-                    }
-                    is I2PConnectionState.Disconnected -> {
-                        tvStatus.text = "🔴 Офлайн"
-                    }
-                    is I2PConnectionState.Connecting -> {
-                        tvStatus.text = "🔄 Подключение..."
-                    }
-                    is I2PConnectionState.Error -> {
-                        tvStatus.text = "⚠️ Ошибка: ${state.message}"
-                    }
+                val (text, colorRes) = when (state) {
+                    is I2PConnectionState.Connected -> "Онлайн" to R.drawable.indicator_online
+                    is I2PConnectionState.Disconnected -> "Офлайн" to R.drawable.indicator_offline
+                    is I2PConnectionState.Connecting -> "Подключение..." to R.drawable.indicator_connecting
+                    is I2PConnectionState.Error -> "Ошибка: ${state.message}" to R.drawable.indicator_offline
                 }
+                tvStatus.text = text
+                statusIndicator.setBackgroundResource(colorRes)
             }
         }
 
-        // --- КНОПКИ ---
         btnCopyAddress.setOnClickListener {
             copyToClipboard(tvMyAddress.text.toString())
-            Toast.makeText(this, "Адрес скопирован!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Адрес скопирован", Toast.LENGTH_SHORT).show()
         }
 
         btnShareAddress.setOnClickListener {
@@ -1672,16 +1730,397 @@ class ProfileActivity : AppCompatActivity() {  // ← ВАЖНО: наследу
                     type = "text/plain"
                     putExtra(Intent.EXTRA_TEXT, "Мой I2P адрес: $address")
                 }
-                startActivity(Intent.createChooser(shareIntent, "Поделиться адресом через"))
+                startActivity(Intent.createChooser(shareIntent, "Поделиться адресом"))
             } else {
                 Toast.makeText(this, "Нет адреса для отправки", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        btnExportIdentity.setOnClickListener {
+            showExportIdentityWarning()
+        }
+
+        btnImportIdentity.setOnClickListener {
+            openIdentityLauncher.launch(arrayOf("text/plain", "text/*"))
+        }
+
+        btnExportContacts.setOnClickListener {
+            showExportContactsWarning()
+        }
+
+        btnImportContacts.setOnClickListener {
+            openContactsLauncher.launch(arrayOf("text/plain", "text/*"))
         }
 
         btnBack.setOnClickListener {
             finish()
         }
     }
+
+    // =====================================================================
+    // IDENTITY EXPORT / IMPORT
+    // =====================================================================
+
+    private fun showExportIdentityWarning() {
+        val publicKey = I2PManager.getMyPublicKey()
+        val privateKey = I2PManager.getInstance()?.getPrivateDestination()
+
+        if (publicKey.isNullOrBlank() || privateKey.isNullOrBlank()) {
+            Toast.makeText(this, "Ключи не сгенерированы", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Внимание")
+            .setMessage(
+                "Вы экспортируете приватный ключ.\n\n" +
+                "Этот файл позволяет восстановить вашу identity на другом устройстве.\n\n" +
+                "Никому не показывайте этот файл!\n" +
+                "Храните его в надёжном месте."
+            )
+            .setPositiveButton("Экспортировать") { _, _ ->
+                val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
+                val address = I2PManager.getMyAddress()
+                val filename = "i2p_identity_${address.take(12)}_$timestamp.txt"
+                saveIdentityLauncher.launch(filename)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun doExportIdentity(uri: Uri) {
+        try {
+            val publicKey = I2PManager.getMyPublicKey()
+            val privateKey = I2PManager.getInstance()?.getPrivateDestination()
+            val address = I2PManager.getMyAddress()
+
+            if (publicKey.isNullOrBlank() || privateKey.isNullOrBlank()) {
+                Toast.makeText(this, "Ключи не найдены", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val content = buildString {
+                appendLine("# =============================================")
+                appendLine("# I2P MESSENGER IDENTITY EXPORT")
+                appendLine("# =============================================")
+                appendLine("#")
+                appendLine("# ВНИМАНИЕ: ЭТОТ ФАЙЛ СОДЕРЖИТ ПРИВАТНЫЙ КЛЮЧ")
+                appendLine("# Храните его в безопасном месте")
+                appendLine("# Никому не показывайте")
+                appendLine("#")
+                appendLine("# Сгенерирован: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}")
+                appendLine("# Base32 адрес: $address")
+                appendLine("#")
+                appendLine("# =============================================")
+                appendLine("# ПУБЛИЧНЫЙ КЛЮЧ")
+                appendLine("# =============================================")
+                appendLine(publicKey)
+                appendLine("#")
+                appendLine("# =============================================")
+                appendLine("# ПРИВАТНЫЙ КЛЮЧ")
+                appendLine("# =============================================")
+                appendLine(privateKey)
+            }
+
+            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                outputStream.write(content.toByteArray(Charsets.UTF_8))
+                outputStream.flush()
+            }
+
+            Toast.makeText(this, "Identity экспортирована", Toast.LENGTH_LONG).show()
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка экспорта: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    private fun doImportIdentity(uri: Uri) {
+        try {
+            val content = contentResolver.openInputStream(uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                    reader.readText()
+                }
+            } ?: run {
+                Toast.makeText(this, "Не удалось прочитать файл", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val keys = parseIdentityFile(content)
+            if (keys == null) {
+                Toast.makeText(this, "Не удалось распарсить файл. Проверьте формат.", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            val (publicKey, privateKey) = keys
+            val address = extractAddressFromFile(content) ?: "неизвестен"
+
+            AlertDialog.Builder(this)
+                .setTitle("Восстановление identity")
+                .setMessage(
+                    "Файл содержит identity для адреса:\n\n$address\n\n" +
+                    "Восстановить эту identity на этом устройстве?\n\n" +
+                    "Текущая identity будет заменена."
+                )
+                .setPositiveButton("Восстановить") { _, _ ->
+                    doRestoreIdentity(publicKey, privateKey)
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка импорта: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    private fun parseIdentityFile(content: String): Pair<String, String>? {
+        val lines = content.lines()
+        var publicKey: String? = null
+        var privateKey: String? = null
+
+        var inPublicSection = false
+        var inPrivateSection = false
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            when {
+                trimmed.contains("ПУБЛИЧНЫЙ КЛЮЧ") || trimmed.contains("PUBLIC") -> {
+                    inPublicSection = true
+                    inPrivateSection = false
+                }
+                trimmed.contains("ПРИВАТНЫЙ КЛЮЧ") || trimmed.contains("PRIVATE") -> {
+                    inPublicSection = false
+                    inPrivateSection = true
+                }
+                trimmed.startsWith("#") || trimmed.isEmpty() -> continue
+                inPublicSection && publicKey == null && trimmed.length > 100 -> {
+                    publicKey = trimmed
+                }
+                inPrivateSection && privateKey == null && trimmed.length > 100 -> {
+                    privateKey = trimmed
+                }
+            }
+        }
+
+        return if (publicKey != null && privateKey != null) {
+            Pair(publicKey, privateKey)
+        } else {
+            null
+        }
+    }
+
+    private fun extractAddressFromFile(content: String): String? {
+        val lines = content.lines()
+        for (line in lines) {
+            if (line.contains("Base32 адрес:")) {
+                return line.substringAfter("Base32 адрес:").trim()
+            }
+        }
+        return null
+    }
+
+    private fun doRestoreIdentity(publicKey: String, privateKey: String) {
+        try {
+            val prefs = getSharedPreferences("i2p_identity", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString("public_destination", publicKey)
+                .putString("private_destination", privateKey)
+                .apply()
+
+            Toast.makeText(this, "Identity восстановлена. Перезапустите приложение.", Toast.LENGTH_LONG).show()
+
+            AlertDialog.Builder(this)
+                .setTitle("Identity восстановлена")
+                .setMessage("Для применения изменений нужно перезапустить I2P сервис. Перезапустить сейчас?")
+                .setPositiveButton("Да") { _, _ ->
+                    stopService(Intent(this, I2PService::class.java))
+                    startService(Intent(this, I2PService::class.java))
+                    finish()
+                }
+                .setNegativeButton("Позже") { _, _ ->
+                    finish()
+                }
+                .show()
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    // =====================================================================
+    // CONTACTS EXPORT / IMPORT
+    // =====================================================================
+
+    private fun showExportContactsWarning() {
+        AlertDialog.Builder(this)
+            .setTitle("Экспорт контактов")
+            .setMessage(
+                "Будут экспортированы все контакты:\n" +
+                "- Имя\n" +
+                "- Base32 адрес\n" +
+                "- Публичный ключ (если известен)\n\n" +
+                "Файл не содержит приватных ключей."
+            )
+            .setPositiveButton("Экспортировать") { _, _ ->
+                val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
+                val filename = "i2p_contacts_$timestamp.txt"
+                saveContactsLauncher.launch(filename)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun doExportContacts(uri: Uri) {
+        try {
+            val db = AppDatabase.getInstance(this)
+            val contactRepo = ContactRepository(db)
+
+            lifecycleScope.launch {
+                val contacts = contactRepo.getAllContactsSync()
+
+                if (contacts.isEmpty()) {
+                    Toast.makeText(this@ProfileActivity, "Нет контактов для экспорта", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                val content = buildString {
+                    appendLine("# =============================================")
+                    appendLine("# I2P MESSENGER CONTACTS EXPORT")
+                    appendLine("# =============================================")
+                    appendLine("#")
+                    appendLine("# Экспортировано: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}")
+                    appendLine("# Всего контактов: ${contacts.size}")
+                    appendLine("#")
+                    appendLine("# Формат: NAME | ADDRESS | PUBLIC_KEY")
+                    appendLine("# =============================================")
+                    appendLine()
+
+                    for (contact in contacts) {
+                        val name = contact.name
+                        val address = contact.address
+                        val key = contact.publicKeyBase64 ?: ""
+                        appendLine("$name | $address | $key")
+                    }
+                }
+
+                contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    outputStream.write(content.toByteArray(Charsets.UTF_8))
+                    outputStream.flush()
+                }
+
+                Toast.makeText(
+                    this@ProfileActivity,
+                    "Экспортировано ${contacts.size} контактов",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка экспорта: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    private fun doImportContacts(uri: Uri) {
+        try {
+            val content = contentResolver.openInputStream(uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                    reader.readText()
+                }
+            } ?: run {
+                Toast.makeText(this, "Не удалось прочитать файл", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val contacts = parseContactsFile(content)
+            if (contacts.isEmpty()) {
+                Toast.makeText(this, "Не найдено контактов в файле", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            AlertDialog.Builder(this)
+                .setTitle("Импорт контактов")
+                .setMessage("Найдено ${contacts.size} контактов. Импортировать?")
+                .setPositiveButton("Импортировать") { _, _ ->
+                    doImportContactsInternal(contacts)
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка импорта: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    private fun parseContactsFile(content: String): List<Triple<String, String, String>> {
+        val result = mutableListOf<Triple<String, String, String>>()
+        val lines = content.lines()
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
+
+            val parts = trimmed.split("|").map { it.trim() }
+            if (parts.size >= 2) {
+                val name = parts[0]
+                val address = parts[1].removeSuffix(".b32.i2p").lowercase()
+                val key = if (parts.size >= 3) parts[2] else ""
+                if (name.isNotEmpty() && address.isNotEmpty()) {
+                    result.add(Triple(name, address, key))
+                }
+            }
+        }
+
+        return result
+    }
+
+    private fun doImportContactsInternal(
+        contacts: List<Triple<String, String, String>>
+    ) {
+        val db = AppDatabase.getInstance(this)
+        val contactRepo = ContactRepository(db)
+
+        var imported = 0
+        var skipped = 0
+
+        lifecycleScope.launch {
+            for ((name, address, key) in contacts) {
+                try {
+                    val existing = contactRepo.getContactByAddress(address)
+                    if (existing == null) {
+                        contactRepo.addContact(name, address)
+                        if (key.isNotEmpty()) {
+                            contactRepo.updatePublicKey(address, key)
+                        }
+                        imported++
+                    } else {
+                        if (key.isNotEmpty() && existing.publicKeyBase64 != key) {
+                            contactRepo.updatePublicKey(address, key)
+                        }
+                        skipped++
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("ProfileActivity", "Ошибка импорта контакта $address", e)
+                }
+            }
+
+            val message = if (imported > 0) {
+                "Импортировано: $imported, пропущено: $skipped"
+            } else {
+                "Все контакты уже существуют ($skipped)"
+            }
+
+            Toast.makeText(this@ProfileActivity, message, Toast.LENGTH_LONG).show()
+            finish()
+        }
+    }
+
+    // =====================================================================
+    // HELPERS
+    // =====================================================================
 
     private fun copyToClipboard(text: String) {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -4517,7 +4956,7 @@ class SamConnection(
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="oval">
-    <solid android:color="#9E9E9E" />
+    <solid android:color="#757575" />
 </shape>
 
 
@@ -4567,6 +5006,14 @@ class SamConnection(
       android:pathData="M21,6h-2v9L6,15v2c0,0.55 0.45,1 1,1h11l4,4L22,7c0,-0.55 -0.45,-1 -1,-1zM17,12L17,3c0,-0.55 -0.45,-1 -1,-1L3,2c-0.55,0 -1,0.45 -1,1v14l4,-4h10c0.55,0 1,-0.45 1,-1z"/>
 </vector>
 
+
+
+===== FILE: app/src/main/res/drawable/indicator_connecting.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#FF9800" />
+</shape>
 
 
 ===== FILE: app/src/main/res/drawable-v24/ic_launcher_foreground.xml =====
@@ -4767,159 +5214,261 @@ class SamConnection(
 
 ===== FILE: app/src/main/res/layout/activity_profile.xml =====
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:background="@color/light_gray">
+<ScrollView
+     xmlns:android="http://schemas.android.com/apk/res/android"
+     xmlns:app="http://schemas.android.com/apk/res-auto"
+     android:layout_height="match_parent"
+     android:layout_width="match_parent"
+     android:fillViewport="true">
 
-    <!-- Кнопка назад -->
-    <Button
-        android:id="@+id/btnBack"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="← Назад"
-        style="@style/Widget.MaterialComponents.Button.TextButton"
-        android:layout_marginBottom="16dp" />
+    <LinearLayout
+         android:layout_height="wrap_content"
+         android:layout_width="match_parent"
+         android:background="@color/light_gray"
+         android:padding="16dp"
+         android:orientation="vertical">
 
-    <!-- Аватар -->
-    <ImageView
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:src="@drawable/ic_avatar"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="16dp" />
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="16dp"
+             style="@style/Widget.MaterialComponents.Button.TextButton"
+             android:id="@+id/btnBack"
+             android:text="Назад" />
 
-    <!-- Статус -->
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="🟢 Онлайн"
-        android:textSize="16sp"
-        android:textColor="@android:color/black"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="24dp" />
+        <ImageView
+             android:layout_height="80dp"
+             android:layout_width="80dp"
+             android:layout_marginBottom="16dp"
+             android:src="@drawable/ic_avatar"
+             android:layout_gravity="center_horizontal" />
 
-    <!-- Блок Base32 -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Ваш I2P адрес (Base32)"
-        android:textStyle="bold"
-        android:textSize="14sp"
-        android:textColor="@android:color/black"
-        android:layout_marginBottom="4dp" />
+        <LinearLayout
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="24dp"
+             android:gravity="center_vertical"
+             android:orientation="horizontal"
+             android:layout_gravity="center_horizontal">
 
-    <TextView
-        android:id="@+id/tvMyAddress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Загрузка..."
-        android:textSize="14sp"
-        android:textColor="@android:color/black"
-        android:padding="8dp"
-        android:background="@android:drawable/edit_text"
-        android:layout_marginBottom="16dp" />
+            <View
+                 android:layout_height="12dp"
+                 android:layout_width="12dp"
+                 android:layout_marginEnd="8dp"
+                 android:background="@drawable/indicator_online"
+                 android:id="@+id/statusIndicator" />
 
-    <!-- Кнопки -->
-    <Button
-        android:id="@+id/btnCopyAddress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="📋 Копировать адрес"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-        android:layout_marginBottom="16dp" />
+            <TextView
+                 android:layout_height="wrap_content"
+                 android:layout_width="wrap_content"
+                 android:textSize="16sp"
+                 android:textColor="@android:color/black"
+                 android:id="@+id/tvStatus"
+                 android:text="Онлайн" />
 
-    <Button
-        android:id="@+id/btnShareAddress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="📤 Поделиться адресом"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-        android:layout_marginBottom="24dp" />
+        </LinearLayout>
 
-    <!-- Блок Base64 -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Полный ключ (Base64)"
-        android:textStyle="bold"
-        android:textSize="14sp"
-        android:textColor="@android:color/black"
-        android:layout_marginBottom="4dp" />
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="4dp"
+             android:textSize="14sp"
+             android:textColor="@android:color/black"
+             android:text="I2P адрес"
+             android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/tvMyBase64"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Скрыто"
-        android:textSize="12sp"
-        android:textColor="@android:color/black"
-        android:padding="8dp"
-        android:background="@android:drawable/edit_text"
-        android:layout_marginBottom="16dp" />
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="16dp"
+             android:background="@android:drawable/edit_text"
+             android:padding="8dp"
+             android:textSize="14sp"
+             android:textColor="@android:color/black"
+             android:id="@+id/tvMyAddress"
+             android:text="Загрузка..." />
 
-</LinearLayout>
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="8dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnCopyAddress"
+             android:text="Копировать адрес" />
+
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="16dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnShareAddress"
+             android:text="Поделиться адресом" />
+
+        <View
+             android:layout_height="1dp"
+             android:layout_width="match_parent"
+             android:layout_marginVertical="8dp"
+             android:background="@android:color/darker_gray" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="4dp"
+             android:textSize="14sp"
+             android:textColor="@android:color/black"
+             android:text="Identity"
+             android:textStyle="bold" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="8dp"
+             android:textSize="12sp"
+             android:textColor="@android:color/darker_gray"
+             android:text="Экспортируйте для переноса на другое устройство" />
+
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="8dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnExportIdentity"
+             android:text="Экспортировать identity" />
+
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="16dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnImportIdentity"
+             android:text="Восстановить identity" />
+
+        <View
+             android:layout_height="1dp"
+             android:layout_width="match_parent"
+             android:layout_marginVertical="8dp"
+             android:background="@android:color/darker_gray" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="4dp"
+             android:textSize="14sp"
+             android:textColor="@android:color/black"
+             android:text="Контакты"
+             android:textStyle="bold" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="8dp"
+             android:textSize="12sp"
+             android:textColor="@android:color/darker_gray"
+             android:text="Экспортируйте все контакты для переноса на другое устройство" />
+
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="8dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnExportContacts"
+             android:text="Экспортировать контакты" />
+
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="16dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnImportContacts"
+             android:text="Импортировать контакты" />
+
+        <View
+             android:layout_height="1dp"
+             android:layout_width="match_parent"
+             android:layout_marginVertical="8dp"
+             android:background="@android:color/darker_gray" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="4dp"
+             android:textSize="14sp"
+             android:textColor="@android:color/black"
+             android:text="Публичный ключ (Base64)"
+             android:textStyle="bold" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="16dp"
+             android:background="@android:drawable/edit_text"
+             android:padding="8dp"
+             android:textSize="12sp"
+             android:textColor="@android:color/black"
+             android:id="@+id/tvMyBase64"
+             android:text="Скрыто" />
+
+    </LinearLayout>
+
+</ScrollView>
 
 
 ===== FILE: app/src/main/res/layout/activity_chat.xml =====
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/light_gray">
+<LinearLayout
+     xmlns:android="http://schemas.android.com/apk/res/android"
+     xmlns:app="http://schemas.android.com/apk/res-auto"
+     android:layout_height="match_parent"
+     android:layout_width="match_parent"
+     android:background="@color/light_gray"
+     android:orientation="vertical">
 
     <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
-        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
-        app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
-        app:titleTextColor="@android:color/white"
-        app:subtitleTextColor="@android:color/white"
-        app:navigationIcon="@drawable/ic_back">
+         android:layout_height="?attr/actionBarSize"
+         android:layout_width="match_parent"
+         app:subtitleTextColor="@android:color/white"
+         android:background="?attr/colorPrimary"
+         app:titleTextColor="@android:color/white"
+         app:navigationIcon="@drawable/ic_back"
+         app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+         android:id="@+id/toolbar">
 
         <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_gravity="center">
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:orientation="vertical"
+             android:layout_gravity="center">
 
             <TextView
-                android:id="@+id/tvContactName"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Чат"
-                android:textColor="@android:color/white"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                 android:layout_height="wrap_content"
+                 android:layout_width="wrap_content"
+                 android:textSize="18sp"
+                 android:textColor="@android:color/white"
+                 android:id="@+id/tvContactName"
+                 android:text="Чат"
+                 android:textStyle="bold" />
 
             <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                 android:layout_height="wrap_content"
+                 android:layout_width="wrap_content"
+                 android:gravity="center_vertical"
+                 android:orientation="horizontal">
 
                 <View
-                    android:id="@+id/indicatorOnline"
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
-                    android:background="@drawable/indicator_online"
-                    android:layout_marginEnd="4dp" />
+                     android:layout_height="8dp"
+                     android:layout_width="8dp"
+                     android:layout_marginEnd="4dp"
+                     android:background="@drawable/indicator_online"
+                     android:id="@+id/indicatorOnline" />
 
                 <TextView
-                    android:id="@+id/tvOnlineStatus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Онлайн"
-                    android:textColor="@android:color/white"
-                    android:textSize="12sp" />
+                     android:layout_height="wrap_content"
+                     android:layout_width="wrap_content"
+                     android:textSize="12sp"
+                     android:textColor="@android:color/white"
+                     android:id="@+id/tvOnlineStatus"
+                     android:text="Онлайн" />
 
             </LinearLayout>
 
@@ -4928,42 +5477,42 @@ class SamConnection(
     </com.google.android.material.appbar.MaterialToolbar>
 
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvMessages"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:padding="8dp"
-        android:clipToPadding="false" />
+         android:layout_height="0dp"
+         android:layout_width="match_parent"
+         android:padding="8dp"
+         android:clipToPadding="false"
+         android:layout_weight="1"
+         android:id="@+id/rvMessages" />
 
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        android:background="@color/white">
+         android:layout_height="wrap_content"
+         android:layout_width="match_parent"
+         android:background="@color/white"
+         android:padding="8dp"
+         android:orientation="horizontal">
 
         <EditText
-            android:id="@+id/etMessage"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:hint="Сообщение..."
-            android:textColor="@android:color/black"
-            android:textColorHint="@android:color/darker_gray"
-            android:background="@android:drawable/editbox_background"
-            android:padding="8dp" />
+             android:layout_height="wrap_content"
+             android:layout_width="0dp"
+             android:background="@android:drawable/editbox_background"
+             android:hint="Сообщение..."
+             android:padding="8dp"
+             android:textColorHint="@android:color/darker_gray"
+             android:textColor="@android:color/black"
+             android:layout_weight="1"
+             android:id="@+id/etMessage" />
 
         <Button
-            android:id="@+id/btnSend"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="➤"
-            android:textSize="20sp"
-            android:background="?attr/colorPrimary"
-            android:textColor="@android:color/white"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:layout_marginStart="8dp" />
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:paddingEnd="16dp"
+             android:background="?attr/colorPrimary"
+             android:textSize="20sp"
+             android:textColor="@android:color/white"
+             android:paddingStart="16dp"
+             android:layout_marginStart="8dp"
+             android:id="@+id/btnSend"
+             android:text="➤" />
 
     </LinearLayout>
 
@@ -5172,6 +5721,56 @@ class SamConnection(
             android:layout_gravity="end" />
 
     </LinearLayout>
+
+</LinearLayout>
+
+
+===== FILE: app/src/main/res/layout/dialog_import_identity.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Вставьте ключи из экспортированного файла"
+        android:textSize="14sp"
+        android:textColor="@android:color/darker_gray"
+        android:layout_marginBottom="12dp" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Публичный ключ (Base64)"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etPublicKey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textVisiblePassword"
+            android:maxLines="3" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Приватный ключ (НИКОМУ НЕ ПОКАЗЫВАТЬ!)"
+        android:layout_marginTop="8dp"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etPrivateKey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textVisiblePassword"
+            android:maxLines="3" />
+
+    </com.google.android.material.textfield.TextInputLayout>
 
 </LinearLayout>
 
@@ -5518,7 +6117,7 @@ include(":app")
 
 ===== FILE: gradle.properties =====
 #AndroidCS: enforce UTF-8 & locale for Gradle daemon
-#Fri Aug 14 23:13:16 GMT 2026
+#Sat Aug 15 02:28:42 GMT 2026
 android.nonTransitiveRClass=true
 org.gradle.daemon.idletimeout=10800000
 kotlin.code.style=official
@@ -5573,11 +6172,7 @@ echo "Готово! Содержимое в $OUTPUT (размер: $(du -h "$OUT
 
 
 
-===== FILE: project_dump.txt =====
-
-
-
-===== FILE: ARCHITECTURE.md =====
+===== FILE: ARCHITECTURE.txt =====
 ﻿I2P Messenger — архитектура и протокол
 
 Версия документа: 1.0
@@ -6779,66 +7374,7 @@ Receipts
 
 
 
-===== FILE: SAM_STABILITY_FIX.md =====
-# I2PMessenger — SAM stability fix
-
-## Main bug found
-
-`SamConnection` used a non-reentrant `kotlinx.coroutines.sync.Mutex`.
-
-Several methods acquired `commandMutex` and then called another method that acquired the same mutex again:
-
-- `lookupDestination()` -> `hello()`
-- `generateDestination()` -> `hello()`
-- `createStreamSession()` -> `hello()`
-
-That is a deadlock. For example:
-
-    lookupDestination()
-      -> commandMutex.withLock
-          -> hello()
-              -> commandMutex.withLock  // waits forever
-
-This explains why NAMING LOOKUP and SESSION CREATE could stop progressing. The outer timeout in `I2PManager` did not make the design correct.
-
-## Fix
-
-The control path now has:
-
-- `connectInternal()` — connects without acquiring the mutex.
-- `ensureHelloLocked()` — ensures HELLO while the caller already owns the mutex.
-- public `connect()` / `hello()` acquire the mutex only once.
-- `lookupDestination()`, `generateDestination()`, and `createStreamSession()` call `ensureHelloLocked()` instead of recursively calling `hello()`.
-
-The SAM control socket read timeout is handled by the Java socket's `soTimeout`. A coroutine timeout around a blocking `InputStream.read()` was removed because cancellation does not reliably interrupt a blocking Java socket read.
-
-## Message dispatch fix
-
-`I2PManager.setOnMessageReceived()` now returns `Boolean`.
-
-If the system handler (`PresenceManager`) returns `true`, the incoming packet is considered consumed and is not forwarded to normal chat listeners.
-
-## App lifecycle cleanup
-
-`GlobalScope` in `App` was replaced with an application-owned `CoroutineScope(SupervisorJob() + Dispatchers.IO)`.
-
-## Verification
-
-The project was statically inspected after the changes. A local Gradle compile could not be run in this environment because the wrapper attempted to download Gradle 9.3.1 from services.gradle.org, and external network access is unavailable here.
-
-Run in AndroidIDE:
-
-    ./gradlew :app:compileDebugKotlin
-
-Then test, in order:
-
-1. startup / HELLO;
-2. existing identity -> SESSION CREATE;
-3. Base32 NAMING LOOKUP;
-4. STREAM CONNECT;
-5. send a normal message;
-6. receive a normal message;
-7. presence is consumed and does not appear in ChatActivity.
+===== FILE: project_dump.txt =====
 
 
 

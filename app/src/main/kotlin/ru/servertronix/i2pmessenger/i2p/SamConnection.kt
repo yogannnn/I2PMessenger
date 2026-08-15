@@ -28,7 +28,7 @@ class SamConnection(
         private const val SAM_VERSION = "3.1"
 
         private const val CONNECT_TIMEOUT_MS = 5_000
-        private const val COMMAND_READ_TIMEOUT_MS = 120_000
+        private const val COMMAND_READ_TIMEOUT_MS = 180_000
 
         private const val STREAM_CONNECT_TIMEOUT_MS = 90_000
         private const val STREAM_ACCEPT_TIMEOUT_MS = 300_000
@@ -184,13 +184,19 @@ class SamConnection(
         }
     }
 
+    // =====================================================================
+    // DISCONNECT (ИСПРАВЛЕН — БЕЗ MUTEX)
+    // =====================================================================
+
     suspend fun disconnect() {
         Log.d(TAG, "🔍 [SC] disconnect() called")
         closeActiveAcceptSocket()
 
-        commandMutex.withLock {
-            disconnectControl()
-        }
+        // Закрываем контрольный сокет БЕЗ захвата mutex,
+        // чтобы не блокировать выполняющиеся команды.
+        // Если команда выполняется — она упадёт с IOException,
+        // что и требуется при отключении.
+        disconnectControl()
     }
 
     private fun disconnectControl() {
@@ -235,7 +241,7 @@ class SamConnection(
     }
 
     // =====================================================================
-    // SEND SAM COMMAND (ПОКАЗЫВАЕТ ВСЕ ДАННЫЕ)
+    // SEND SAM COMMAND
     // =====================================================================
 
     private suspend fun sendCommandInternal(
@@ -323,7 +329,7 @@ class SamConnection(
     }
 
     // =====================================================================
-    // NAMING LOOKUP (ПОКАЗЫВАЕТ ВСЕ ДАННЫЕ)
+    // NAMING LOOKUP
     // =====================================================================
 
     suspend fun lookupDestination(
@@ -440,7 +446,8 @@ class SamConnection(
                 return@withLock false
             }
 
-            val command = "SESSION CREATE STYLE=STREAM ID=$sessionId DESTINATION=$privateDestination"
+            val command = "SESSION CREATE STYLE=STREAM ID=$sessionId DESTINATION=$privateDestination " +
+                    "i2cp.leaseSetEncType=4 inbound.quantity=3 outbound.quantity=3"
             Log.d(TAG, "🔍 [SC] [CTRL-05] команда (полная): $command")
             val bytes = command.toByteArray(StandardCharsets.UTF_8)
             Log.d(TAG, "🔍 [SC] [CTRL-05] command length=${bytes.size} bytes")
@@ -497,7 +504,7 @@ class SamConnection(
     }
 
     // =====================================================================
-    // STREAM CONNECT (ПОКАЗЫВАЕТ ВСЕ ДАННЫЕ)
+    // STREAM CONNECT
     // =====================================================================
 
   suspend fun createStreamSocket(sessionId: String, destination: String): Socket? {
@@ -576,7 +583,7 @@ class SamConnection(
 }
 
     // =====================================================================
-    // STREAM SEND (ПОКАЗЫВАЕТ ВСЕ ДАННЫЕ)
+    // STREAM SEND
     // =====================================================================
 
     suspend fun sendStreamMessage(
@@ -632,7 +639,7 @@ class SamConnection(
     }
 
     // =====================================================================
-    // STREAM ACCEPT (ПОКАЗЫВАЕТ ВСЕ ДАННЫЕ)
+    // STREAM ACCEPT
     // =====================================================================
 
     suspend fun acceptStream(
