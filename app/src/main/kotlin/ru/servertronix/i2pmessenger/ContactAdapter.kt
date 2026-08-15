@@ -1,9 +1,11 @@
 package ru.servertronix.i2pmessenger
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 
 class ContactAdapter(
@@ -31,6 +33,10 @@ class ContactAdapter(
     override fun getItemCount(): Int = contacts.size
 
     fun updateContacts(newContacts: List<Contact>) {
+        Log.d("ContactAdapter", "🔍 [UI] updateContacts: ${newContacts.size} контактов")
+        newContacts.forEach { contact ->
+            Log.d("ContactAdapter", "🔍 [UI]   контакт: ${contact.name}, isOnline=${contact.isOnline}")
+        }
         contacts = newContacts
         notifyDataSetChanged()
     }
@@ -38,10 +44,13 @@ class ContactAdapter(
     inner class ContactViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val tvName: TextView = itemView.findViewById(R.id.tvContactName)
         private val tvAddress: TextView = itemView.findViewById(R.id.tvContactAddress)
+        private val tvStatus: TextView = itemView.findViewById(R.id.tvContactStatus)
 
         fun bind(contact: Contact) {
             tvName.text = contact.name
             tvAddress.text = contact.address.take(20) + "..."
+            tvStatus.text = contact.getStatus()
+            tvStatus.setTextColor(contact.getStatusColor())
         }
     }
 }

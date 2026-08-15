@@ -1,31 +1,7 @@
 [
     {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-xxhdpi_ic_launcher.webp.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-xxhdpi/ic_launcher.webp"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-hdpi_ic_launcher_round.webp.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-hdpi/ic_launcher_round.webp"
-    },
-    {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_item_message_mine.xml.flat",
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/item_message_mine.xml"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable-xxhdpi_ic_my_icon.png.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable-xxhdpi/ic_my_icon.png"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_send.xml.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_send.xml"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable-mdpi_ic_my_icon.png.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable-mdpi/ic_my_icon.png"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-hdpi_ic_launcher.webp.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-hdpi/ic_launcher.webp"
     },
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_activity_chat.xml.flat",
@@ -36,36 +12,16 @@
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/indicator_online.xml"
     },
     {
-        "merged": "ru.servertronix.i2pmessenger.app-debug-52:/layout_activity_chat.xml.flat",
-        "source": "ru.servertronix.i2pmessenger.app-main-54:/layout/activity_chat.xml"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_nav_header.xml.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/nav_header.xml"
-    },
-    {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable-v24_ic_launcher_foreground.xml.flat",
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable-v24/ic_launcher_foreground.xml"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_activity_profile.xml.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/activity_profile.xml"
     },
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-mdpi_ic_launcher_round.webp.flat",
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-mdpi/ic_launcher_round.webp"
     },
     {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_avatar.xml.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_avatar.xml"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_add.xml.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_add.xml"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-xhdpi_ic_launcher.webp.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-xhdpi/ic_launcher.webp"
+        "merged": "ru.servertronix.i2pmessenger.app-debug-52:/drawable_indicator_connecting.xml.flat",
+        "source": "ru.servertronix.i2pmessenger.app-main-54:/drawable/indicator_connecting.xml"
     },
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_logout.xml.flat",
@@ -76,16 +32,12 @@
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-mdpi/ic_launcher.webp"
     },
     {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-xxxhdpi_ic_launcher_round.webp.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-xxxhdpi/ic_launcher_round.webp"
-    },
-    {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_back.xml.flat",
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_back.xml"
     },
     {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-xxxhdpi_ic_launcher_round.webp.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-xxxhdpi/ic_launcher_round.webp"
     },
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_bg_message_mine.xml.flat",
@@ -100,10 +52,6 @@
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/menu/menu_chat.xml"
     },
     {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-xxhdpi_ic_launcher_round.webp.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-xxhdpi/ic_launcher_round.webp"
-    },
-    {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/menu_menu_drawer.xml.flat",
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/menu/menu_drawer.xml"
     },
@@ -112,12 +60,104 @@
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/xml/backup_rules.xml"
     },
     {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_item_contact.xml.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/item_contact.xml"
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_forum.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/forum.xml"
     },
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/xml_data_extraction_rules.xml.flat",
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_twotone_message.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/twotone_message.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_profile.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_profile.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_dialog_import_identity.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/dialog_import_identity.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_my_icon.png.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_my_icon.png"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_indicator_offline.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/indicator_offline.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable-xxxhdpi_ic_my_icon.png.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable-xxxhdpi/ic_my_icon.png"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_item_message_other.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/item_message_other.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-xxhdpi_ic_launcher.webp.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-xxhdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-hdpi_ic_launcher_round.webp.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-hdpi/ic_launcher_round.webp"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable-xxhdpi_ic_my_icon.png.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable-xxhdpi/ic_my_icon.png"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable-mdpi_ic_my_icon.png.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable-mdpi/ic_my_icon.png"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_send.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_send.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-hdpi_ic_launcher.webp.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-hdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_nav_header.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/nav_header.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_bg_status.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/bg_status.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_activity_profile.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/activity_profile.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_avatar.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_avatar.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_add.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_add.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-xhdpi_ic_launcher.webp.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-xhdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_stop.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_stop.xml"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-xxhdpi_ic_launcher_round.webp.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/mipmap-xxhdpi/ic_launcher_round.webp"
+    },
+    {
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_item_contact.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/item_contact.xml"
     },
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_menu_drawer.xml.flat",
@@ -128,12 +168,12 @@
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/activity_main.xml"
     },
     {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable-xhdpi_ic_my_icon.png.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable-xhdpi/ic_my_icon.png"
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_indicator_connecting.xml.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/indicator_connecting.xml"
     },
     {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_profile.xml.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_profile.xml"
+        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable-xhdpi_ic_my_icon.png.flat",
+        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable-xhdpi/ic_my_icon.png"
     },
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_dialog_add_contact.xml.flat",
@@ -144,20 +184,12 @@
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_launcher_background.xml"
     },
     {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_my_icon.png.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_my_icon.png"
-    },
-    {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_menu.xml.flat",
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_menu.xml"
     },
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_ic_settings.xml.flat",
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/ic_settings.xml"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_indicator_offline.xml.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/indicator_offline.xml"
     },
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/mipmap-xhdpi_ic_launcher_round.webp.flat",
@@ -170,14 +202,6 @@
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable_bg_message_other.xml.flat",
         "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable/bg_message_other.xml"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable-xxxhdpi_ic_my_icon.png.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/drawable-xxxhdpi/ic_my_icon.png"
-    },
-    {
-        "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/layout_item_message_other.xml.flat",
-        "source": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-main-54:/layout/item_message_other.xml"
     },
     {
         "merged": "/data/user/0/com.tom.rv2ide/files/home/.gradle/daemon/9.3.1/ru.servertronix.i2pmessenger.app-debug-52:/drawable-hdpi_ic_my_icon.png.flat",

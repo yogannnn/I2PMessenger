@@ -3,11 +3,12 @@ package ru.servertronix.i2pmessenger.data.repository
 import ru.servertronix.i2pmessenger.Message
 import ru.servertronix.i2pmessenger.data.local.AppDatabase
 import ru.servertronix.i2pmessenger.data.local.MessageEntity
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class MessageRepository(private val db: AppDatabase) {
 
-    fun getMessagesForChat(chatId: String) = db.messageDao()
+    fun getMessagesForChat(chatId: String): Flow<List<Message>> = db.messageDao()
         .getMessagesForChat(chatId)
         .map { entities ->
             entities.map { it.toMessage() }

@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:2:1-36:12
-INJECTED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:2:1-36:12
-INJECTED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:2:1-36:12
-INJECTED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:2:1-36:12
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:2:1-45:12
+INJECTED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:2:1-45:12
+INJECTED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:2:1-45:12
+INJECTED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:2:1-45:12
 MERGED from [logger-runtime.aar] /data/user/0/com.tom.rv2ide/files/home/.gradle/caches/9.3.1/transforms/77884a0f21498809592808dfa91b704c/transformed/logger-runtime/AndroidManifest.xml:2:1-21:12
 MERGED from [androidx.navigation:navigation-common:2.8.4] /data/user/0/com.tom.rv2ide/files/home/.gradle/caches/9.3.1/transforms/fa6741f5ae693eec16bf5e022a96b5df/transformed/navigation-common-2.8.4/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.navigation:navigation-common-ktx:2.8.4] /data/user/0/com.tom.rv2ide/files/home/.gradle/caches/9.3.1/transforms/b01a3fc0f8c776cd5226a4e38d633c58/transformed/navigation-common-ktx-2.8.4/AndroidManifest.xml:2:1-7:12
@@ -81,9 +81,21 @@ uses-permission#android.permission.INTERNET
 ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:5:5-67
 	android:name
 		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:5:22-64
+uses-permission#android.permission.FOREGROUND_SERVICE
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:6:5-77
+	android:name
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:6:22-74
+uses-permission#android.permission.FOREGROUND_SERVICE_DATA_SYNC
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:7:5-87
+	android:name
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:7:22-84
+uses-permission#android.permission.POST_NOTIFICATIONS
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:8:5-77
+	android:name
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:8:22-74
 application
-ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:7:5-34:19
-INJECTED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:7:5-34:19
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:10:5-43:19
+INJECTED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:10:5-43:19
 MERGED from [logger-runtime.aar] /data/user/0/com.tom.rv2ide/files/home/.gradle/caches/9.3.1/transforms/77884a0f21498809592808dfa91b704c/transformed/logger-runtime/AndroidManifest.xml:14:5-19:19
 MERGED from [logger-runtime.aar] /data/user/0/com.tom.rv2ide/files/home/.gradle/caches/9.3.1/transforms/77884a0f21498809592808dfa91b704c/transformed/logger-runtime/AndroidManifest.xml:14:5-19:19
 MERGED from [com.google.android.material:material:1.12.0] /data/user/0/com.tom.rv2ide/files/home/.gradle/caches/9.3.1/transforms/54576dc7f8cb1fbe2c6ff8a045ed2715/transformed/material-1.12.0/AndroidManifest.xml:22:5-20
@@ -111,49 +123,59 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /data/user/0/com.tom.rv2ide
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.13.1] /data/user/0/com.tom.rv2ide/files/home/.gradle/caches/9.3.1/transforms/629ce7d2a18986dc180f97294ffac59a/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:13:9-35
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:16:9-35
 	android:label
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:11:9-41
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:14:9-41
 	android:roundIcon
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:12:9-49
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:15:9-49
 	tools:targetApi
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:15:9-29
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:18:9-29
 	android:icon
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:10:9-44
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:13:9-44
 	android:allowBackup
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:9:9-35
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:12:9-35
 	android:theme
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:14:9-50
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:17:9-50
 	android:name
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:8:9-28
-activity#ru.servertronix.i2pmessenger.MainActivity
-ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:17:9-24:20
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:11:9-28
+service#ru.servertronix.i2pmessenger.I2PService
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:20:9-24:56
+	android:enabled
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:22:13-35
 	android:exported
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:19:13-36
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:23:13-37
+	android:foregroundServiceType
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:24:13-53
 	android:name
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:18:13-41
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:21:13-39
+activity#ru.servertronix.i2pmessenger.MainActivity
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:26:9-33:20
+	android:exported
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:28:13-36
+	android:name
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:27:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:20:13-23:29
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:29:13-32:29
 action#android.intent.action.MAIN
-ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:21:17-69
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:30:17-69
 	android:name
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:21:25-66
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:30:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:22:17-77
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:31:17-77
 	android:name
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:22:27-74
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:31:27-74
 activity#ru.servertronix.i2pmessenger.ProfileActivity
-ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:26:9-28:58
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:35:9-37:58
 	android:parentActivityName
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:28:13-55
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:37:13-55
 	android:name
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:27:13-44
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:36:13-44
 activity#ru.servertronix.i2pmessenger.ChatActivity
-ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:30:9-32:58
+ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:39:9-41:58
 	android:parentActivityName
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:32:13-55
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:41:13-55
 	android:name
-		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:31:13-41
+		ADDED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml:40:13-41
 uses-sdk
 INJECTED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/AndroidManifest.xml

@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [ContactEntity::class, MessageEntity::class],
-    version = 2,
+    version = 4,  // <- УВЕЛИЧЬ НА 1 (было 2)
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,8 +24,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "i2p_messenger_db"
-                ).fallbackToDestructiveMigration() // для сброса при изменении схемы
-                 .build()
+                )
+                .fallbackToDestructiveMigration() // сброс при изменении схемы
+                .build()
                 INSTANCE = instance
                 instance
             }

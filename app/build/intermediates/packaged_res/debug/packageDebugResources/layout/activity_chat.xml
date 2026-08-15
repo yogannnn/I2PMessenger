@@ -1,57 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/light_gray">
+<LinearLayout
+     xmlns:android="http://schemas.android.com/apk/res/android"
+     xmlns:app="http://schemas.android.com/apk/res-auto"
+     android:layout_height="match_parent"
+     android:layout_width="match_parent"
+     android:background="@color/light_gray"
+     android:orientation="vertical">
 
     <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
-        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
-        app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
-        app:titleTextColor="@android:color/white"
-        app:subtitleTextColor="@android:color/white"
-        app:navigationIcon="@drawable/ic_back">
+         android:layout_height="?attr/actionBarSize"
+         android:layout_width="match_parent"
+         app:subtitleTextColor="@android:color/white"
+         android:background="?attr/colorPrimary"
+         app:titleTextColor="@android:color/white"
+         app:navigationIcon="@drawable/ic_back"
+         app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+         android:id="@+id/toolbar">
 
         <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_gravity="center">
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:orientation="vertical"
+             android:layout_gravity="center">
 
             <TextView
-                android:id="@+id/tvContactName"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Чат"
-                android:textColor="@android:color/white"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                 android:layout_height="wrap_content"
+                 android:layout_width="wrap_content"
+                 android:textSize="18sp"
+                 android:textColor="@android:color/white"
+                 android:id="@+id/tvContactName"
+                 android:text="Чат"
+                 android:textStyle="bold" />
 
             <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                 android:layout_height="wrap_content"
+                 android:layout_width="wrap_content"
+                 android:gravity="center_vertical"
+                 android:orientation="horizontal">
 
                 <View
-                    android:id="@+id/indicatorOnline"
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
-                    android:background="@drawable/indicator_online"
-                    android:layout_marginEnd="4dp" />
+                     android:layout_height="8dp"
+                     android:layout_width="8dp"
+                     android:layout_marginEnd="4dp"
+                     android:background="@drawable/indicator_online"
+                     android:id="@+id/indicatorOnline" />
 
                 <TextView
-                    android:id="@+id/tvOnlineStatus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Онлайн"
-                    android:textColor="@android:color/white"
-                    android:textSize="12sp" />
+                     android:layout_height="wrap_content"
+                     android:layout_width="wrap_content"
+                     android:textSize="12sp"
+                     android:textColor="@android:color/white"
+                     android:id="@+id/tvOnlineStatus"
+                     android:text="Онлайн" />
 
             </LinearLayout>
 
@@ -60,42 +61,42 @@
     </com.google.android.material.appbar.MaterialToolbar>
 
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvMessages"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:padding="8dp"
-        android:clipToPadding="false" />
+         android:layout_height="0dp"
+         android:layout_width="match_parent"
+         android:padding="8dp"
+         android:clipToPadding="false"
+         android:layout_weight="1"
+         android:id="@+id/rvMessages" />
 
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        android:background="@color/white">
+         android:layout_height="wrap_content"
+         android:layout_width="match_parent"
+         android:background="@color/white"
+         android:padding="8dp"
+         android:orientation="horizontal">
 
         <EditText
-            android:id="@+id/etMessage"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:hint="Сообщение..."
-            android:textColor="@android:color/black"
-            android:textColorHint="@android:color/darker_gray"
-            android:background="@android:drawable/editbox_background"
-            android:padding="8dp" />
+             android:layout_height="wrap_content"
+             android:layout_width="0dp"
+             android:background="@android:drawable/editbox_background"
+             android:hint="Сообщение..."
+             android:padding="8dp"
+             android:textColorHint="@android:color/darker_gray"
+             android:textColor="@android:color/black"
+             android:layout_weight="1"
+             android:id="@+id/etMessage" />
 
         <Button
-            android:id="@+id/btnSend"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="➤"
-            android:textSize="20sp"
-            android:background="?attr/colorPrimary"
-            android:textColor="@android:color/white"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:layout_marginStart="8dp" />
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:paddingEnd="16dp"
+             android:background="?attr/colorPrimary"
+             android:textSize="20sp"
+             android:textColor="@android:color/white"
+             android:paddingStart="16dp"
+             android:layout_marginStart="8dp"
+             android:id="@+id/btnSend"
+             android:text="➤" />
 
     </LinearLayout>
 

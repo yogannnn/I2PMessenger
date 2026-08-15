@@ -9,6 +9,9 @@
         android:targetSdkVersion="34" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.GET_PACKAGE_SIZE" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
@@ -33,6 +36,12 @@
         android:roundIcon="@drawable/ic_my_icon"
         android:supportsRtl="true"
         android:theme="@style/Theme.I2PMessenger" >
+        <service
+            android:name="ru.servertronix.i2pmessenger.I2PService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <activity
             android:name="ru.servertronix.i2pmessenger.MainActivity"
             android:exported="true" >

@@ -3042,6 +3042,7 @@ drawable avd_hide_password
 drawable avd_show_password
 drawable bg_message_mine
 drawable bg_message_other
+drawable bg_status
 drawable btn_checkbox_checked_mtrl
 drawable btn_checkbox_checked_to_unchecked_mtrl_animation
 drawable btn_checkbox_unchecked_mtrl
@@ -3055,6 +3056,7 @@ drawable design_ic_visibility
 drawable design_ic_visibility_off
 drawable design_password_eye
 drawable design_snackbar_background
+drawable forum
 drawable ic_add
 drawable ic_arrow_back_black_24
 drawable ic_avatar
@@ -3084,7 +3086,9 @@ drawable ic_profile
 drawable ic_search_black_24
 drawable ic_send
 drawable ic_settings
+drawable ic_stop
 drawable indeterminate_static
+drawable indicator_connecting
 drawable indicator_offline
 drawable indicator_online
 drawable m3_avd_hide_password
@@ -3162,6 +3166,7 @@ drawable notify_panel_notification_icon_bg
 drawable test_level_drawable
 drawable tooltip_frame_dark
 drawable tooltip_frame_light
+drawable twotone_message
 id ALT
 id BOTTOM_END
 id BOTTOM_START
@@ -3266,6 +3271,10 @@ id bounceEnd
 id bounceStart
 id btnBack
 id btnCopyAddress
+id btnExportContacts
+id btnExportIdentity
+id btnImportContacts
+id btnImportIdentity
 id btnSend
 id btnShareAddress
 id buttonPanel
@@ -3354,6 +3363,8 @@ id escape
 id etContactAddress
 id etContactName
 id etMessage
+id etPrivateKey
+id etPublicKey
 id exitUntilCollapsed
 id expand_activities_button
 id expanded_menu
@@ -3615,6 +3626,7 @@ id startToEnd
 id startVertical
 id staticLayout
 id staticPostLayout
+id statusIndicator
 id stop
 id stretch
 id submenuarrow
@@ -3672,6 +3684,7 @@ id transition_transform
 id triangle
 id tvContactAddress
 id tvContactName
+id tvContactStatus
 id tvMessageText
 id tvMessageTime
 id tvMyAddress
@@ -3836,6 +3849,7 @@ layout design_navigation_menu_item
 layout design_text_input_end_icon
 layout design_text_input_start_icon
 layout dialog_add_contact
+layout dialog_import_identity
 layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity
 layout item_contact

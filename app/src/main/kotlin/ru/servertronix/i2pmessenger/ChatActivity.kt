@@ -1,6 +1,7 @@
 package ru.servertronix.i2pmessenger
 
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -15,7 +16,9 @@ import com.google.android.material.appbar.MaterialToolbar
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import ru.servertronix.i2pmessenger.data.local.AppDatabase
+import ru.servertronix.i2pmessenger.data.repository.ContactRepository
 import ru.servertronix.i2pmessenger.data.repository.MessageRepository
+import ru.servertronix.i2pmessenger.i2p.I2PManager
 import java.security.MessageDigest
 
 class ChatActivity : AppCompatActivity() {
@@ -33,14 +36,22 @@ class ChatActivity : AppCompatActivity() {
     private var contactName: String = ""
     private var contactAddress: String = ""
     private var myAddress: String = ""
+
+    private lateinit var contactRepository: ContactRepository
     private lateinit var messageRepository: MessageRepository
 
     private val messageListener: (sender: String, message: String) -> Unit = { sender, msg ->
         runOnUiThread {
+            // Пропускаем presence-пакеты (они уже перехвачены системным обработчиком)
+            if (msg.startsWith("PRESENCE|")) {
+                Log.d("ChatActivity", "🔍 [UI] пропускаем presence: $msg")
+                return@runOnUiThread
+            }
             val senderBase32 = extractBase32FromBase64(sender)
             val cleanSender = senderBase32.removeSuffix(".b32.i2p")
             val cleanMyAddress = myAddress.removeSuffix(".b32.i2p")
             val isMine = cleanSender == cleanMyAddress
+            Log.d("ChatActivity", "🔍 [UI] получено сообщение от $cleanSender, isMine=$isMine")
             addMessage(msg, isMine, saveToDb = true)
         }
     }
@@ -53,11 +64,12 @@ class ChatActivity : AppCompatActivity() {
         contactAddress = intent.getStringExtra("contact_address") ?: ""
         myAddress = I2PManager.getMyAddress()
 
-        // --- ИНИЦИАЛИЗАЦИЯ ROOM ---
+        Log.d("ChatActivity", "🔍 [UI] onCreate: contactName=$contactName, contactAddress=$contactAddress")
+
         val db = AppDatabase.getInstance(this)
+        contactRepository = ContactRepository(db)
         messageRepository = MessageRepository(db)
 
-        // --- ТУЛБАР ---
         toolbar = findViewById(R.id.toolbar)
         tvContactName = findViewById(R.id.tvContactName)
         tvOnlineStatus = findViewById(R.id.tvOnlineStatus)
@@ -68,9 +80,9 @@ class ChatActivity : AppCompatActivity() {
         supportActionBar?.setDisplayShowTitleEnabled(false)
 
         tvContactName.text = contactName
-        updateOnlineStatus(true)
 
-        // --- СПИСОК СООБЩЕНИЙ ---
+        loadContactStatus()
+
         rvMessages = findViewById(R.id.rvMessages)
         etMessage = findViewById(R.id.etMessage)
         btnSend = findViewById(R.id.btnSend)
@@ -79,9 +91,9 @@ class ChatActivity : AppCompatActivity() {
         rvMessages.layoutManager = LinearLayoutManager(this)
         rvMessages.adapter = adapter
 
-        // --- ЗАГРУЗКА ИСТОРИИ ---
         lifecycleScope.launch {
             messageRepository.getMessagesForChat(contactAddress).collectLatest { history ->
+                Log.d("ChatActivity", "🔍 [UI] обновление истории чата: ${history.size} сообщений")
                 messages.clear()
                 messages.addAll(history)
                 adapter.updateMessages(messages)
@@ -91,19 +103,21 @@ class ChatActivity : AppCompatActivity() {
 
         I2PManager.addMessageListener(messageListener)
 
-        // --- ОТПРАВКА ---
         btnSend.setOnClickListener {
             val msg = etMessage.text.toString().trim()
             if (msg.isNotEmpty()) {
+                Log.d("ChatActivity", "🔍 [UI] отправка сообщения: $msg")
                 val message = Message(
                     id = System.currentTimeMillis().toString(),
                     text = msg,
                     timestamp = System.currentTimeMillis(),
-                    isMine = true
+                    isMine = true,
+                    status = "SENT"
                 )
                 addMessage(msg, true, saveToDb = true)
                 etMessage.text.clear()
                 I2PManager.sendMessage(contactAddress, msg) { success ->
+                    Log.d("ChatActivity", "🔍 [UI] результат отправки: $success")
                     if (!success) {
                         runOnUiThread {
                             // можно пометить как FAILED
@@ -114,12 +128,32 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun loadContactStatus() {
+        lifecycleScope.launch {
+            contactRepository.getContactByAddressFlow(contactAddress).collect { contact ->
+                Log.d("ChatActivity", "🔍 [UI] обновление статуса контакта: ${contact?.name}, isOnline=${contact?.isOnline}, hasKey=${contact?.publicKeyBase64 != null}")
+                if (contact != null) {
+                    updateOnlineStatus(contact.isOnline)
+                }
+            }
+        }
+    }
+
+    private fun updateOnlineStatus(isOnline: Boolean) {
+        Log.d("ChatActivity", "🔍 [UI] updateOnlineStatus: $isOnline")
+        tvOnlineStatus.text = if (isOnline) "Онлайн" else "Офлайн"
+        indicatorOnline.setBackgroundResource(
+            if (isOnline) R.drawable.indicator_online else R.drawable.indicator_offline
+        )
+    }
+
     private fun addMessage(text: String, isMine: Boolean, saveToDb: Boolean = false) {
         val message = Message(
             id = System.currentTimeMillis().toString(),
             text = text,
             timestamp = System.currentTimeMillis(),
-            isMine = isMine
+            isMine = isMine,
+            status = "SENT"
         )
         messages.add(message)
         adapter.updateMessages(messages)
@@ -132,14 +166,6 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateOnlineStatus(isOnline: Boolean) {
-        tvOnlineStatus.text = if (isOnline) "Онлайн" else "Офлайн"
-        indicatorOnline.setBackgroundResource(
-            if (isOnline) R.drawable.indicator_online else R.drawable.indicator_offline
-        )
-    }
-
-    // --- МЕНЮ ---
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_chat, menu)
         return true
@@ -152,6 +178,7 @@ class ChatActivity : AppCompatActivity() {
                 true
             }
             R.id.action_clear_chat -> {
+                Log.d("ChatActivity", "🔍 [UI] очистка чата")
                 messages.clear()
                 adapter.updateMessages(messages)
                 lifecycleScope.launch {
@@ -171,7 +198,6 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
-    // --- ПРЕОБРАЗОВАНИЯ ---
     private fun extractBase32FromBase64(base64: String): String {
         val clean = base64.trim()
         var standardBase64 = clean

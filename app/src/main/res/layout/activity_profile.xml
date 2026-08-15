@@ -1,97 +1,198 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:background="@color/light_gray">
+<ScrollView
+     xmlns:android="http://schemas.android.com/apk/res/android"
+     xmlns:app="http://schemas.android.com/apk/res-auto"
+     android:layout_height="match_parent"
+     android:layout_width="match_parent"
+     android:fillViewport="true">
 
-    <!-- Кнопка назад -->
-    <Button
-        android:id="@+id/btnBack"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="← Назад"
-        style="@style/Widget.MaterialComponents.Button.TextButton"
-        android:layout_marginBottom="16dp" />
+    <LinearLayout
+         android:layout_height="wrap_content"
+         android:layout_width="match_parent"
+         android:background="@color/light_gray"
+         android:padding="16dp"
+         android:orientation="vertical">
 
-    <!-- Аватар -->
-    <ImageView
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:src="@drawable/ic_avatar"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="16dp" />
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="16dp"
+             style="@style/Widget.MaterialComponents.Button.TextButton"
+             android:id="@+id/btnBack"
+             android:text="Назад" />
 
-    <!-- Статус -->
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="🟢 Онлайн"
-        android:textSize="16sp"
-        android:textColor="@android:color/black"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="24dp" />
+        <ImageView
+             android:layout_height="80dp"
+             android:layout_width="80dp"
+             android:layout_marginBottom="16dp"
+             android:src="@drawable/ic_avatar"
+             android:layout_gravity="center_horizontal" />
 
-    <!-- Блок Base32 -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Ваш I2P адрес (Base32)"
-        android:textStyle="bold"
-        android:textSize="14sp"
-        android:textColor="@android:color/black"
-        android:layout_marginBottom="4dp" />
+        <LinearLayout
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="24dp"
+             android:gravity="center_vertical"
+             android:orientation="horizontal"
+             android:layout_gravity="center_horizontal">
 
-    <TextView
-        android:id="@+id/tvMyAddress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Загрузка..."
-        android:textSize="14sp"
-        android:textColor="@android:color/black"
-        android:padding="8dp"
-        android:background="@android:drawable/edit_text"
-        android:layout_marginBottom="16dp" />
+            <View
+                 android:layout_height="12dp"
+                 android:layout_width="12dp"
+                 android:layout_marginEnd="8dp"
+                 android:background="@drawable/indicator_online"
+                 android:id="@+id/statusIndicator" />
 
-    <!-- Кнопки -->
-    <Button
-        android:id="@+id/btnCopyAddress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="📋 Копировать адрес"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-        android:layout_marginBottom="16dp" />
+            <TextView
+                 android:layout_height="wrap_content"
+                 android:layout_width="wrap_content"
+                 android:textSize="16sp"
+                 android:textColor="@android:color/black"
+                 android:id="@+id/tvStatus"
+                 android:text="Онлайн" />
 
-    <Button
-        android:id="@+id/btnShareAddress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="📤 Поделиться адресом"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-        android:layout_marginBottom="24dp" />
+        </LinearLayout>
 
-    <!-- Блок Base64 -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Полный ключ (Base64)"
-        android:textStyle="bold"
-        android:textSize="14sp"
-        android:textColor="@android:color/black"
-        android:layout_marginBottom="4dp" />
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="4dp"
+             android:textSize="14sp"
+             android:textColor="@android:color/black"
+             android:text="I2P адрес"
+             android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/tvMyBase64"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Скрыто"
-        android:textSize="12sp"
-        android:textColor="@android:color/black"
-        android:padding="8dp"
-        android:background="@android:drawable/edit_text"
-        android:layout_marginBottom="16dp" />
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="16dp"
+             android:background="@android:drawable/edit_text"
+             android:padding="8dp"
+             android:textSize="14sp"
+             android:textColor="@android:color/black"
+             android:id="@+id/tvMyAddress"
+             android:text="Загрузка..." />
 
-</LinearLayout>
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="8dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnCopyAddress"
+             android:text="Копировать адрес" />
+
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="16dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnShareAddress"
+             android:text="Поделиться адресом" />
+
+        <View
+             android:layout_height="1dp"
+             android:layout_width="match_parent"
+             android:layout_marginVertical="8dp"
+             android:background="@android:color/darker_gray" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="4dp"
+             android:textSize="14sp"
+             android:textColor="@android:color/black"
+             android:text="Identity"
+             android:textStyle="bold" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="8dp"
+             android:textSize="12sp"
+             android:textColor="@android:color/darker_gray"
+             android:text="Экспортируйте для переноса на другое устройство" />
+
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="8dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnExportIdentity"
+             android:text="Экспортировать identity" />
+
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="16dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnImportIdentity"
+             android:text="Восстановить identity" />
+
+        <View
+             android:layout_height="1dp"
+             android:layout_width="match_parent"
+             android:layout_marginVertical="8dp"
+             android:background="@android:color/darker_gray" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="4dp"
+             android:textSize="14sp"
+             android:textColor="@android:color/black"
+             android:text="Контакты"
+             android:textStyle="bold" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="8dp"
+             android:textSize="12sp"
+             android:textColor="@android:color/darker_gray"
+             android:text="Экспортируйте все контакты для переноса на другое устройство" />
+
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="8dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnExportContacts"
+             android:text="Экспортировать контакты" />
+
+        <Button
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="16dp"
+             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+             android:id="@+id/btnImportContacts"
+             android:text="Импортировать контакты" />
+
+        <View
+             android:layout_height="1dp"
+             android:layout_width="match_parent"
+             android:layout_marginVertical="8dp"
+             android:background="@android:color/darker_gray" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="wrap_content"
+             android:layout_marginBottom="4dp"
+             android:textSize="14sp"
+             android:textColor="@android:color/black"
+             android:text="Публичный ключ (Base64)"
+             android:textStyle="bold" />
+
+        <TextView
+             android:layout_height="wrap_content"
+             android:layout_width="match_parent"
+             android:layout_marginBottom="16dp"
+             android:background="@android:drawable/edit_text"
+             android:padding="8dp"
+             android:textSize="12sp"
+             android:textColor="@android:color/black"
+             android:id="@+id/tvMyBase64"
+             android:text="Скрыто" />
+
+    </LinearLayout>
+
+</ScrollView>

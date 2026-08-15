@@ -1,107 +1,47 @@
 {
   "allFiles": [
     {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/Message.kt",
+      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/ProfileActivity.kt",
       "selection": {
         "end": {
           "column": 1,
-          "index": 212,
-          "line": 8
+          "index": 20833,
+          "line": 530
         },
         "start": {
           "column": 1,
-          "index": 212,
-          "line": 8
+          "index": 20833,
+          "line": 530
         }
       }
     },
     {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/MessageAdapter.kt",
-      "selection": {
-        "end": {
-          "column": 1,
-          "index": 2010,
-          "line": 59
-        },
-        "start": {
-          "column": 1,
-          "index": 2010,
-          "line": 59
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/layout/item_message_mine.xml",
+      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/layout/dialog_import_identity.xml",
       "selection": {
         "end": {
           "column": 15,
-          "index": 1132,
-          "line": 33
+          "index": 1887,
+          "line": 46
         },
         "start": {
           "column": 15,
-          "index": 1132,
-          "line": 33
+          "index": 1887,
+          "line": 46
         }
       }
     },
     {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/layout/item_message_other.xml",
+      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/layout/activity_profile.xml",
       "selection": {
         "end": {
-          "column": 15,
-          "index": 1135,
-          "line": 33
+          "column": 13,
+          "index": 7677,
+          "line": 197
         },
         "start": {
-          "column": 15,
-          "index": 1135,
-          "line": 33
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/drawable/bg_message_mine.xml",
-      "selection": {
-        "end": {
-          "column": 8,
-          "index": 190,
-          "line": 4
-        },
-        "start": {
-          "column": 8,
-          "index": 190,
-          "line": 4
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/drawable/bg_message_other.xml",
-      "selection": {
-        "end": {
-          "column": 8,
-          "index": 190,
-          "line": 4
-        },
-        "start": {
-          "column": 8,
-          "index": 190,
-          "line": 4
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/ChatActivity.kt",
-      "selection": {
-        "end": {
-          "column": 80,
-          "index": 4894,
-          "line": 129
-        },
-        "start": {
-          "column": 80,
-          "index": 4894,
-          "line": 129
+          "column": 13,
+          "index": 7677,
+          "line": 197
         }
       }
     },
@@ -110,43 +50,13 @@
       "selection": {
         "end": {
           "column": 15,
-          "index": 3811,
-          "line": 101
+          "index": 3886,
+          "line": 102
         },
         "start": {
           "column": 15,
-          "index": 3811,
-          "line": 101
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/drawable/indicator_online.xml",
-      "selection": {
-        "end": {
-          "column": 8,
-          "index": 177,
-          "line": 4
-        },
-        "start": {
-          "column": 8,
-          "index": 177,
-          "line": 4
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/menu/menu_drawer.xml",
-      "selection": {
-        "end": {
-          "column": 7,
-          "index": 493,
-          "line": 14
-        },
-        "start": {
-          "column": 7,
-          "index": 493,
-          "line": 14
+          "index": 3886,
+          "line": 102
         }
       }
     },
@@ -166,125 +76,20 @@
       }
     },
     {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/menu/menu_chat.xml",
+      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/drawable/indicator_connecting.xml",
       "selection": {
         "end": {
-          "column": 7,
-          "index": 552,
-          "line": 15
+          "column": 8,
+          "index": 177,
+          "line": 4
         },
         "start": {
-          "column": 7,
-          "index": 552,
-          "line": 15
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/layout/activity_main.xml",
-      "selection": {
-        "end": {
-          "column": 15,
-          "index": 3945,
-          "line": 105
-        },
-        "start": {
-          "column": 15,
-          "index": 3945,
-          "line": 105
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/values/themes.xml",
-      "selection": {
-        "end": {
-          "column": 12,
-          "index": 1098,
-          "line": 18
-        },
-        "start": {
-          "column": 12,
-          "index": 1098,
-          "line": 18
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/values/colors.xml",
-      "selection": {
-        "end": {
-          "column": 0,
-          "index": 0,
-          "line": 0
-        },
-        "start": {
-          "column": 0,
-          "index": 0,
-          "line": 0
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/data/local/MessageEntity.kt",
-      "selection": {
-        "end": {
-          "column": 1,
-          "index": 471,
-          "line": 15
-        },
-        "start": {
-          "column": 1,
-          "index": 471,
-          "line": 15
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/MessageDao.kt",
-      "selection": {
-        "end": {
-          "column": 1,
-          "index": 700,
-          "line": 21
-        },
-        "start": {
-          "column": 1,
-          "index": 700,
-          "line": 21
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/AppDatabase.kt",
-      "selection": {
-        "end": {
-          "column": 1,
-          "index": 1007,
-          "line": 33
-        },
-        "start": {
-          "column": 1,
-          "index": 1007,
-          "line": 33
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/data/repository/MessageRepository.kt",
-      "selection": {
-        "end": {
-          "column": 1,
-          "index": 1242,
-          "line": 42
-        },
-        "start": {
-          "column": 1,
-          "index": 1242,
-          "line": 42
+          "column": 8,
+          "index": 177,
+          "line": 4
         }
       }
     }
   ],
-  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/kotlin/ru/servertronix/i2pmessenger/Message.kt"
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/I2PMessenger/app/src/main/res/drawable/indicator_connecting.xml"
 }
