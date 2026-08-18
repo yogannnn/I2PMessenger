@@ -31,7 +31,8 @@ class SamConnection(
         private const val COMMAND_READ_TIMEOUT_MS = 180_000
 
         private const val STREAM_CONNECT_TIMEOUT_MS = 90_000
-        private const val STREAM_ACCEPT_TIMEOUT_MS = 300_000
+        // FIX: снижен с 5 минут до 1 минуты для быстрого обнаружения мёртвого control-сокета
+        private const val STREAM_ACCEPT_TIMEOUT_MS = 60_000
         private const val STREAM_READ_TIMEOUT_MS = 60_000
 
         private const val HEALTH_TIMEOUT_MS = 3_000
@@ -44,8 +45,13 @@ class SamConnection(
     // CONTROL CONNECTION
     // =====================================================================
 
+    @Volatile
     private var controlSocket: Socket? = null
+
+    @Volatile
     private var controlInput: InputStream? = null
+
+    @Volatile
     private var controlOutput: OutputStream? = null
 
     @Volatile
@@ -54,10 +60,9 @@ class SamConnection(
     @Volatile
     private var helloResponse: String? = null
 
-    /**
-     * Все команды через один control socket должны выполняться
-     * последовательно.
-     */
+    @Volatile
+    private var controlGeneration = 0
+
     private val commandMutex = Mutex()
 
     // =====================================================================
@@ -91,6 +96,37 @@ class SamConnection(
         }
     }
 
+    enum class StreamConnectError {
+        SESSION_INVALID,
+        PEER_UNREACHABLE,
+        TIMEOUT,
+        REFUSED,
+        ROUTER_ERROR,
+        TRANSPORT
+    }
+
+    sealed class StreamConnectResult {
+        class Success(val socket: Socket) : StreamConnectResult()
+        class Failure(
+            val error: StreamConnectError,
+            val detail: String?
+        ) : StreamConnectResult()
+    }
+
+    enum class StreamSendResult {
+        SENT,
+        SESSION_INVALID,
+        PEER_UNREACHABLE,
+        FAILED
+    }
+
+    sealed class AcceptResult {
+        class Accepted(val stream: AcceptedStream) : AcceptResult()
+        object IdleTimeout : AcceptResult()
+        class Rejected(val samResult: String) : AcceptResult()
+        class Failed(val message: String?) : AcceptResult()
+    }
+
     // =====================================================================
     // CONTROL CONNECTION
     // =====================================================================
@@ -103,9 +139,6 @@ class SamConnection(
         }
     }
 
-    /**
-     * Вызывается только когда commandMutex уже удерживается.
-     */
     private fun connectInternal(): Boolean {
         Log.d(TAG, "🔍 [SC] connectInternal() START")
 
@@ -131,6 +164,8 @@ class SamConnection(
             controlSocket = socket
             controlInput = socket.getInputStream()
             controlOutput = socket.getOutputStream()
+
+            controlGeneration++
 
             helloCompleted = false
             helloResponse = null
@@ -185,17 +220,12 @@ class SamConnection(
     }
 
     // =====================================================================
-    // DISCONNECT (ИСПРАВЛЕН — БЕЗ MUTEX)
+    // DISCONNECT
     // =====================================================================
 
     suspend fun disconnect() {
         Log.d(TAG, "🔍 [SC] disconnect() called")
         closeActiveAcceptSocket()
-
-        // Закрываем контрольный сокет БЕЗ захвата mutex,
-        // чтобы не блокировать выполняющиеся команды.
-        // Если команда выполняется — она упадёт с IOException,
-        // что и требуется при отключении.
         disconnectControl()
     }
 
@@ -307,8 +337,22 @@ class SamConnection(
         }
     }
 
-    /** Returns true only while the SAM control socket is usable. */
-    fun isControlConnectionAlive(): Boolean = isControlConnected()
+    fun isControlConnectionAlive(): Boolean {
+        val socket = controlSocket ?: return false
+
+        return try {
+            if (!isControlConnected()) {
+                false
+            } else {
+                socket.sendUrgentData(0)
+                true
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun getControlGeneration(): Int = controlGeneration
 
     suspend fun sendCommand(
         command: String
@@ -466,7 +510,7 @@ class SamConnection(
     }
 
     // =====================================================================
-    // SESSION REMOVE
+    // SESSION REMOVE (добавлен вызов в I2PManager)
     // =====================================================================
 
     suspend fun removeSession(
@@ -483,7 +527,7 @@ class SamConnection(
         return commandMutex.withLock {
 
             if (!isControlConnected()) {
-                Log.w(TAG, "🔍 [SC] not connected")
+                Log.w(TAG, "🔍 [SC] not connected, cannot remove session")
                 return@withLock false
             }
 
@@ -507,80 +551,70 @@ class SamConnection(
     // STREAM CONNECT
     // =====================================================================
 
-  suspend fun createStreamSocket(sessionId: String, destination: String): Socket? {
-    if (sessionId.isBlank() || destination.isBlank()) {
-        Log.e(TAG, "[STREAM-CONNECT] empty params")
-        return null
-    }
-
-    val socket = Socket()
-
-    return try {
-        Log.d(TAG, "[STREAM-CONNECT] connecting...")
-        socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
-        socket.soTimeout = STREAM_CONNECT_TIMEOUT_MS
-
-        val output = socket.getOutputStream()
-        val input = socket.getInputStream()
-
-        // -------------------------------------------------------------
-        // HELLO
-        // -------------------------------------------------------------
-
-        Log.d(TAG, "[STREAM-CONNECT] HELLO =>")
-        writeSamLine(output, "HELLO VERSION MIN=$SAM_VERSION MAX=$SAM_VERSION")
-
-        val helloResponse = readSamLine(input, MAX_SAM_LINE_SIZE)
-        Log.d(TAG, "[STREAM-CONNECT] HELLO <= $helloResponse")
-
-        if (!isOk(helloResponse)) {
-            Log.e(TAG, "[STREAM-CONNECT] HELLO failed")
-            closeQuietly(socket)
-            return null
+    suspend fun createStreamSocket(
+        sessionId: String,
+        destination: String
+    ): StreamConnectResult {
+        if (sessionId.isBlank() || destination.isBlank()) {
+            Log.e(TAG, "[STREAM-CONNECT] empty params")
+            return StreamConnectResult.Failure(StreamConnectError.TRANSPORT, "empty params")
         }
 
-        // -------------------------------------------------------------
-        // STREAM CONNECT
-        // -------------------------------------------------------------
-        // IMPORTANT: do NOT send SESSION STATUS on this socket.
-        //
-        // A STREAM CONNECT socket is a separate SAM protocol connection.
-        // The STREAM session itself was created on the long-lived control
-        // connection.  We only need to pass its ID to STREAM CONNECT here.
-        // Session liveness, when needed, is checked through the dedicated
-        // control socket by isStreamSessionAlive().
-        // Sending SESSION STATUS here was causing SAM to close this socket
-        // and was incorrectly interpreted as "session is gone", which then
-        // triggered a full reconnect and destroyed the real session.
-        // -------------------------------------------------------------
+        val socket = Socket()
 
-        val command = "STREAM CONNECT ID=$sessionId DESTINATION=$destination SILENT=false"
-        Log.d(TAG, "[STREAM-CONNECT] => $command")
-        writeSamLine(output, command)
+        return try {
+            Log.d(TAG, "[STREAM-CONNECT] connecting...")
+            socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
+            socket.soTimeout = STREAM_CONNECT_TIMEOUT_MS
 
-        val connectResponse = readSamLine(input, MAX_SAM_LINE_SIZE)
-        Log.d(TAG, "[STREAM-CONNECT] <= $connectResponse")
+            val output = socket.getOutputStream()
+            val input = socket.getInputStream()
 
-        if (!isOk(connectResponse)) {
-            Log.e(TAG, "[STREAM-CONNECT] STREAM CONNECT failed: $connectResponse")
+            // -------------------------------------------------------------
+            // HELLO
+            // -------------------------------------------------------------
+
+            Log.d(TAG, "[STREAM-CONNECT] HELLO =>")
+            writeSamLine(output, "HELLO VERSION MIN=$SAM_VERSION MAX=$SAM_VERSION")
+
+            val helloResponse = readSamLine(input, MAX_SAM_LINE_SIZE)
+            Log.d(TAG, "[STREAM-CONNECT] HELLO <= $helloResponse")
+
+            if (!isOk(helloResponse)) {
+                Log.e(TAG, "[STREAM-CONNECT] HELLO failed")
+                closeQuietly(socket)
+                return StreamConnectResult.Failure(StreamConnectError.TRANSPORT, "HELLO failed")
+            }
+
+            val command = "STREAM CONNECT ID=$sessionId DESTINATION=$destination SILENT=false"
+            Log.d(TAG, "[STREAM-CONNECT] => $command")
+            writeSamLine(output, command)
+
+            val connectResponse = readSamLine(input, MAX_SAM_LINE_SIZE)
+            Log.d(TAG, "[STREAM-CONNECT] <= $connectResponse")
+
+            if (!isOk(connectResponse)) {
+                val result = extractResultCode(connectResponse)
+                val error = toStreamConnectError(result)
+                Log.e(TAG, "[STREAM-CONNECT] STREAM CONNECT failed: $connectResponse (error=$error)")
+                closeQuietly(socket)
+                return StreamConnectResult.Failure(error, connectResponse)
+            }
+
+            socket.soTimeout = STREAM_READ_TIMEOUT_MS
+            Log.d(TAG, "[STREAM-CONNECT] ✅ established")
+            StreamConnectResult.Success(socket)
+
+        } catch (e: SocketTimeoutException) {
+            Log.e(TAG, "[STREAM-CONNECT] timeout: ${e.message}")
             closeQuietly(socket)
-            return null
+            StreamConnectResult.Failure(StreamConnectError.TIMEOUT, e.message)
+        } catch (e: Exception) {
+            Log.e(TAG, "[STREAM-CONNECT] error: ${e.message}", e)
+            closeQuietly(socket)
+            StreamConnectResult.Failure(StreamConnectError.TRANSPORT, e.message)
         }
-
-        socket.soTimeout = STREAM_READ_TIMEOUT_MS
-        Log.d(TAG, "[STREAM-CONNECT] ✅ established")
-        socket
-
-    } catch (e: SocketTimeoutException) {
-        Log.e(TAG, "[STREAM-CONNECT] timeout: ${e.message}")
-        closeQuietly(socket)
-        null
-    } catch (e: Exception) {
-        Log.e(TAG, "[STREAM-CONNECT] error: ${e.message}", e)
-        closeQuietly(socket)
-        null
     }
-}
 
     // =====================================================================
     // STREAM SEND
@@ -591,7 +625,7 @@ class SamConnection(
         destination: String,
         message: String,
         logCallback: (String) -> Unit = {}
-    ): Boolean {
+    ): StreamSendResult {
 
         Log.d(TAG, "🔍 [SC] ===== sendStreamMessage() START =====")
         Log.d(TAG, "🔍 [SC] sessionId: $sessionId")
@@ -605,7 +639,7 @@ class SamConnection(
         if (sessionId.isBlank() || destination.isBlank() || payload.isEmpty() || payload.size > MAX_MESSAGE_SIZE) {
             Log.w(TAG, "🔍 [SC] ❌ invalid params")
             logCallback("invalid params")
-            return false
+            return StreamSendResult.FAILED
         }
 
         var socket: Socket? = null
@@ -613,25 +647,28 @@ class SamConnection(
         return try {
             logCallback("STREAM CONNECT...")
             Log.d(TAG, "🔍 [SC] вызываем createStreamSocket...")
-            socket = createStreamSocket(sessionId, destination)
-            Log.d(TAG, "🔍 [SC] createStreamSocket вернул ${if (socket != null) "Socket" else "null"}")
 
-            if (socket == null) {
-                logCallback("failed to connect")
-                Log.w(TAG, "🔍 [SC] ❌ socket is null")
-                return false
+            when (val result = createStreamSocket(sessionId, destination)) {
+                is StreamConnectResult.Success -> {
+                    socket = result.socket
+                    Log.d(TAG, "🔍 [SC] отправляем payload (${payload.size} bytes)...")
+                    writeFrame(result.socket.getOutputStream(), payload)
+                    logCallback("✅ sent")
+                    Log.d(TAG, "🔍 [SC] ✅ отправлено успешно")
+                    StreamSendResult.SENT
+                }
+
+                is StreamConnectResult.Failure -> {
+                    logCallback("failed to connect: ${result.error}")
+                    Log.w(TAG, "🔍 [SC] ❌ STREAM CONNECT failed: ${result.error} (${result.detail})")
+                    toStreamSendResult(result.error)
+                }
             }
-
-            Log.d(TAG, "🔍 [SC] отправляем payload (${payload.size} bytes)...")
-            writeFrame(socket.getOutputStream(), payload)
-            logCallback("✅ sent")
-            Log.d(TAG, "🔍 [SC] ✅ отправлено успешно")
-            true
 
         } catch (e: Exception) {
             logCallback("send error: ${e.message}")
             Log.e(TAG, "🔍 [SC] ❌ sendStreamMessage ошибка", e)
-            false
+            StreamSendResult.FAILED
         } finally {
             closeQuietly(socket)
             Log.d(TAG, "🔍 [SC] ===== sendStreamMessage() FINISH =====")
@@ -644,13 +681,13 @@ class SamConnection(
 
     suspend fun acceptStream(
         sessionId: String
-    ): AcceptedStream? {
+    ): AcceptResult {
 
         Log.d(TAG, "🔍 [SC] acceptStream() START: sessionId=$sessionId")
 
         if (sessionId.isBlank()) {
             Log.w(TAG, "🔍 [SC] sessionId пустой")
-            return null
+            return AcceptResult.Failed("empty sessionId")
         }
 
         val socket = Socket()
@@ -682,7 +719,7 @@ class SamConnection(
 
             if (!isOk(helloResponse)) {
                 Log.e(TAG, "🔍 [SC] [STREAM-ACCEPT] ❌ HELLO failed: $helloResponse")
-                return null
+                return AcceptResult.Failed("HELLO failed")
             }
 
             // -------------------------------------------------------------
@@ -697,8 +734,9 @@ class SamConnection(
             Log.d(TAG, "🔍 [SC] [STREAM-ACCEPT] <= $acceptResponse")
 
             if (!isOk(acceptResponse)) {
+                val result = extractResultCode(acceptResponse)
                 Log.e(TAG, "🔍 [SC] [STREAM-ACCEPT] ❌ ACCEPT failed: $acceptResponse")
-                return null
+                return AcceptResult.Rejected(result ?: acceptResponse ?: "UNKNOWN")
             }
 
             // -------------------------------------------------------------
@@ -711,32 +749,32 @@ class SamConnection(
 
             if (sender == null || sender.isBlank() || sender.startsWith("STREAM STATUS ")) {
                 Log.e(TAG, "🔍 [SC] [STREAM-ACCEPT] ❌ invalid sender: $sender")
-                return null
+                return AcceptResult.Failed("invalid sender")
             }
 
             socket.soTimeout = STREAM_READ_TIMEOUT_MS
             handedOff = true
 
             Log.d(TAG, "🔍 [SC] [STREAM-ACCEPT] ✅ accepted from ${sender.take(48)}...")
-            AcceptedStream(
-                senderDestination = sender.trim(),
-                input = input,
-                socket = socket
+            AcceptResult.Accepted(
+                AcceptedStream(
+                    senderDestination = sender.trim(),
+                    input = input,
+                    socket = socket
+                )
             )
 
         } catch (e: SocketTimeoutException) {
-            // No incoming stream during the accept wait is normal. This is NOT
-            // evidence that the SAM control connection or session is dead.
             Log.d(TAG, "🔍 [SC] [STREAM-ACCEPT] idle timeout; reopening ACCEPT")
-            null
+            AcceptResult.IdleTimeout
         } catch (e: SocketException) {
             if (!socket.isClosed) {
                 Log.e(TAG, "🔍 [SC] [STREAM-ACCEPT] SocketException: ${e.message}", e)
             }
-            null
+            AcceptResult.Failed(e.message)
         } catch (e: Exception) {
             Log.e(TAG, "🔍 [SC] [STREAM-ACCEPT] error: ${e.message}", e)
-            null
+            AcceptResult.Failed(e.message)
         } finally {
 
             synchronized(acceptSocketLock) {
@@ -933,17 +971,23 @@ class SamConnection(
         address: String
     ): String {
 
-        var value = address.trim()
+        val value = address.trim()
 
         if (value.isEmpty()) {
             return ""
         }
 
-        if (!value.contains('.')) {
-            value += ".b32.i2p"
+        if (value.contains('=') || value.contains('~') || value.length >= 100) {
+            return value
         }
 
-        return value.lowercase()
+        var name = value
+
+        if (!name.contains('.')) {
+            name += ".b32.i2p"
+        }
+
+        return name.lowercase()
     }
 
     private fun isOk(
@@ -983,6 +1027,32 @@ class SamConnection(
             response.substring(valueStart, valueEnd)
         } else {
             response.substring(valueStart)
+        }
+    }
+
+    private fun extractResultCode(response: String?): String? {
+        return extractSamValue(response, "RESULT")
+    }
+
+    private fun toStreamConnectError(samResult: String?): StreamConnectError {
+        return when (samResult?.uppercase()) {
+            "INVALID_ID" -> StreamConnectError.SESSION_INVALID
+            "CANT_REACH_PEER" -> StreamConnectError.PEER_UNREACHABLE
+            "TIMEOUT" -> StreamConnectError.TIMEOUT
+            "REFUSED" -> StreamConnectError.REFUSED
+            "I2P_ERROR" -> StreamConnectError.ROUTER_ERROR
+            else -> StreamConnectError.ROUTER_ERROR
+        }
+    }
+
+    private fun toStreamSendResult(error: StreamConnectError): StreamSendResult {
+        return when (error) {
+            StreamConnectError.SESSION_INVALID -> StreamSendResult.SESSION_INVALID
+            StreamConnectError.PEER_UNREACHABLE,
+            StreamConnectError.TIMEOUT,
+            StreamConnectError.REFUSED -> StreamSendResult.PEER_UNREACHABLE
+            StreamConnectError.ROUTER_ERROR,
+            StreamConnectError.TRANSPORT -> StreamSendResult.FAILED
         }
     }
 

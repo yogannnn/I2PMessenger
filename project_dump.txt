@@ -79,7 +79,6 @@ import ru.servertronix.i2pmessenger.data.local.AppDatabase
 import ru.servertronix.i2pmessenger.data.repository.ContactRepository
 import ru.servertronix.i2pmessenger.data.repository.MessageRepository
 import ru.servertronix.i2pmessenger.i2p.I2PManager
-import java.security.MessageDigest
 
 class ChatActivity : AppCompatActivity() {
 
@@ -107,7 +106,7 @@ class ChatActivity : AppCompatActivity() {
                 Log.d("ChatActivity", "🔍 [UI] пропускаем presence: $msg")
                 return@runOnUiThread
             }
-            val senderBase32 = extractBase32FromBase64(sender)
+            val senderBase32 = I2PManager.base64ToBase32(sender)
             val cleanSender = senderBase32.removeSuffix(".b32.i2p")
             val cleanMyAddress = myAddress.removeSuffix(".b32.i2p")
             val isMine = cleanSender == cleanMyAddress
@@ -256,44 +255,6 @@ class ChatActivity : AppCompatActivity() {
             }
             else -> super.onOptionsItemSelected(item)
         }
-    }
-
-    private fun extractBase32FromBase64(base64: String): String {
-        val clean = base64.trim()
-        var standardBase64 = clean
-            .replace('-', '+')
-            .replace('~', '/')
-        when (standardBase64.length % 4) {
-            2 -> standardBase64 += "=="
-            3 -> standardBase64 += "="
-            0 -> { /* ok */ }
-        }
-        val destination = android.util.Base64.decode(standardBase64, android.util.Base64.DEFAULT)
-        val digest = MessageDigest.getInstance("SHA-256").digest(destination)
-        return encodeBase32(digest)
-    }
-
-    private fun encodeBase32(bytes: ByteArray): String {
-        val alphabet = "abcdefghijklmnopqrstuvwxyz234567"
-        val result = StringBuilder()
-        var i = 0
-        var buffer = 0
-        var bitsLeft = 0
-        while (i < bytes.size) {
-            buffer = (buffer shl 8) or (bytes[i].toInt() and 0xFF)
-            bitsLeft += 8
-            while (bitsLeft >= 5) {
-                val index = (buffer shr (bitsLeft - 5)) and 0x1F
-                result.append(alphabet[index])
-                bitsLeft -= 5
-            }
-            i++
-        }
-        if (bitsLeft > 0) {
-            val index = (buffer shl (5 - bitsLeft)) and 0x1F
-            result.append(alphabet[index])
-        }
-        return result.toString()
     }
 
     override fun onDestroy() {
@@ -662,8 +623,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.navigation.NavigationView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ru.servertronix.i2pmessenger.data.local.AppDatabase
 import ru.servertronix.i2pmessenger.data.repository.ContactRepository
 import ru.servertronix.i2pmessenger.i2p.I2PManager
@@ -676,8 +640,13 @@ class MainActivity : AppCompatActivity() {
     private val contactsList = mutableListOf<Contact>()
     private lateinit var contactRepository: ContactRepository
 
+    // Защита от повторного запуска resolveMissingDestinations
+    private var isResolvingDestinations = false
+    private var lastResolveTime = 0L
+
     companion object {
         private const val NOTIFICATION_PERMISSION_REQUEST = 1001
+        private const val MIN_RESOLVE_INTERVAL_MS = 60_000L // 1 минута между запусками
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -707,12 +676,8 @@ class MainActivity : AppCompatActivity() {
         val db = AppDatabase.getInstance(this)
         contactRepository = ContactRepository(db)
 
-        // ---- ОБНОВЛЯЕМ КЛЮЧИ ДЛЯ ВСЕХ КОНТАКТОВ ----
-        lifecycleScope.launch {
-            Log.d("MainActivity", "🔍 [UI] обновляем ключи для всех контактов...")
-            val count = contactRepository.resolveMissingDestinations()
-            Log.d("MainActivity", "🔍 [UI] обновлено $count контактов")
-        }
+        // ---- ОБНОВЛЯЕМ КЛЮЧИ ДЛЯ ВСЕХ КОНТАКТОВ С ЗАДЕРЖКОЙ ----
+        scheduleResolveMissingDestinations()
 
         drawerLayout = findViewById(R.id.drawerLayout)
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
@@ -808,6 +773,7 @@ class MainActivity : AppCompatActivity() {
     private fun loadContacts() {
         lifecycleScope.launch {
             contactRepository.getAllContacts().collectLatest { contacts ->
+                Log.d("MainActivity", "🔍 [UI] Flow обновил список: ${contacts.size} контактов")
                 contactsList.clear()
                 contactsList.addAll(contacts)
                 contactAdapter.updateContacts(contactsList)
@@ -847,30 +813,34 @@ class MainActivity : AppCompatActivity() {
             contactsList.add(newContact)
             contactAdapter.updateContacts(contactsList)
 
-            lifecycleScope.launch {
+            lifecycleScope.launch(Dispatchers.IO) {
                 try {
                     val destination = contactRepository.addContactAndResolve(name, normalizedAddress)
                     Log.d("MainActivity", "🔍 addContactAndResolve вернул: $destination")
-                    if (destination != null) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Контакт добавлен, ключ получен",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Контакт добавлен, но ключ пока не получен",
-                            Toast.LENGTH_LONG
-                        ).show()
+                    withContext(Dispatchers.Main) {
+                        if (destination != null) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Контакт добавлен, ключ получен",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Контакт добавлен, но ключ пока не получен",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e("MainActivity", "❌ Ошибка добавления контакта", e)
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Ошибка: ${e.message}",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Ошибка: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
                 loadContacts()
             }
@@ -903,14 +873,16 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Контакт с таким адресом уже существует", Toast.LENGTH_SHORT).show()
                 return@setPositiveButton
             }
-            lifecycleScope.launch {
+            lifecycleScope.launch(Dispatchers.IO) {
                 contactRepository.updateContact(contact.id, name, normalizedAddress)
                 contactRepository.updatePublicKey(normalizedAddress, "")
                 contactRepository.resolveAndSaveDestination(normalizedAddress)
+                withContext(Dispatchers.Main) {
+                    contactsList[position] = contact.copy(name = name, address = normalizedAddress)
+                    contactAdapter.updateContacts(contactsList)
+                    Toast.makeText(this@MainActivity, "Контакт обновлён", Toast.LENGTH_SHORT).show()
+                }
             }
-            contactsList[position] = contact.copy(name = name, address = normalizedAddress)
-            contactAdapter.updateContacts(contactsList)
-            Toast.makeText(this, "Контакт обновлён", Toast.LENGTH_SHORT).show()
         }
         builder.setNegativeButton("Отмена", null)
         builder.show()
@@ -921,12 +893,14 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Удалить контакт")
             .setMessage("Вы уверены, что хотите удалить ${contact.name}?")
             .setPositiveButton("Удалить") { _, _ ->
-                lifecycleScope.launch {
+                lifecycleScope.launch(Dispatchers.IO) {
                     contactRepository.deleteContact(contact.id)
+                    withContext(Dispatchers.Main) {
+                        contactsList.removeAt(position)
+                        contactAdapter.updateContacts(contactsList)
+                        Toast.makeText(this@MainActivity, "Контакт удалён", Toast.LENGTH_SHORT).show()
+                    }
                 }
-                contactsList.removeAt(position)
-                contactAdapter.updateContacts(contactsList)
-                Toast.makeText(this, "Контакт удалён", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Отмена", null)
             .show()
@@ -952,6 +926,31 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    /** Планирует resolveMissingDestinations с защитой от частых вызовов */
+    private fun scheduleResolveMissingDestinations() {
+        val now = System.currentTimeMillis()
+        if (isResolvingDestinations || now - lastResolveTime < MIN_RESOLVE_INTERVAL_MS) {
+            Log.d("MainActivity", "🔍 [UI] resolveMissingDestinations пропущен (уже идёт или недавно был)")
+            return
+        }
+
+        isResolvingDestinations = true
+        lastResolveTime = now
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                delay(3000) // ждём, пока I2PManager подключится
+                Log.d("MainActivity", "🔍 [UI] обновляем ключи для всех контактов...")
+                val count = contactRepository.resolveMissingDestinations()
+                Log.d("MainActivity", "🔍 [UI] обновлено $count контактов")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "❌ Ошибка resolveMissingDestinations", e)
+            } finally {
+                isResolvingDestinations = false
+            }
         }
     }
 
@@ -985,6 +984,552 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE id = :id")
     suspend fun deleteMessage(id: Long)
 }
+
+
+===== FILE: app/src/main/kotlin/ru/servertronix/i2pmessenger/ProfileActivity.kt =====
+package ru.servertronix.i2pmessenger
+
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import ru.servertronix.i2pmessenger.data.local.AppDatabase
+import ru.servertronix.i2pmessenger.data.repository.ContactRepository
+import ru.servertronix.i2pmessenger.i2p.I2PManager
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class ProfileActivity : AppCompatActivity() {
+
+    private lateinit var tvMyAddress: TextView
+    private lateinit var tvMyBase64: TextView
+    private lateinit var tvStatus: TextView
+    private lateinit var statusIndicator: View
+    private lateinit var btnCopyAddress: Button
+    private lateinit var btnShareAddress: Button
+    private lateinit var btnExportIdentity: Button
+    private lateinit var btnImportIdentity: Button
+    private lateinit var btnExportContacts: Button
+    private lateinit var btnImportContacts: Button
+    private lateinit var btnBack: Button
+
+    // =====================================================================
+    // SAF LAUNCHERS
+    // =====================================================================
+
+    private val saveIdentityLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            doExportIdentity(uri)
+        } else {
+            Toast.makeText(this, "Экспорт отменён", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val openIdentityLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            doImportIdentity(uri)
+        } else {
+            Toast.makeText(this, "Импорт отменён", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val saveContactsLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            doExportContacts(uri)
+        } else {
+            Toast.makeText(this, "Экспорт контактов отменён", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val openContactsLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            doImportContacts(uri)
+        } else {
+            Toast.makeText(this, "Импорт контактов отменён", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_profile)
+
+        tvMyAddress = findViewById(R.id.tvMyAddress)
+        tvMyBase64 = findViewById(R.id.tvMyBase64)
+        tvStatus = findViewById(R.id.tvStatus)
+        statusIndicator = findViewById(R.id.statusIndicator)
+        btnCopyAddress = findViewById(R.id.btnCopyAddress)
+        btnShareAddress = findViewById(R.id.btnShareAddress)
+        btnExportIdentity = findViewById(R.id.btnExportIdentity)
+        btnImportIdentity = findViewById(R.id.btnImportIdentity)
+        btnExportContacts = findViewById(R.id.btnExportContacts)
+        btnImportContacts = findViewById(R.id.btnImportContacts)
+        btnBack = findViewById(R.id.btnBack)
+
+        val base32 = I2PManager.getMyAddress()
+        tvMyAddress.text = if (base32.isNotEmpty()) base32 else "Не удалось получить адрес"
+        val base64 = I2PManager.getMyPublicKey()
+        tvMyBase64.text = base64 ?: "Ключ недоступен"
+
+        lifecycleScope.launch {
+            I2PManager.state.collectLatest { state ->
+                val (text, colorRes) = when (state) {
+                    is I2PConnectionState.Connected -> "Онлайн" to R.drawable.indicator_online
+                    is I2PConnectionState.Disconnected -> "Офлайн" to R.drawable.indicator_offline
+                    is I2PConnectionState.Connecting -> "Подключение..." to R.drawable.indicator_connecting
+                    is I2PConnectionState.Error -> "Ошибка: ${state.message}" to R.drawable.indicator_offline
+                }
+                tvStatus.text = text
+                statusIndicator.setBackgroundResource(colorRes)
+            }
+        }
+
+        btnCopyAddress.setOnClickListener {
+            copyToClipboard(tvMyAddress.text.toString())
+            Toast.makeText(this, "Адрес скопирован", Toast.LENGTH_SHORT).show()
+        }
+
+        btnShareAddress.setOnClickListener {
+            val address = tvMyAddress.text.toString()
+            if (address.isNotEmpty() && address != "Не удалось получить адрес") {
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, "Мой I2P адрес: $address")
+                }
+                startActivity(Intent.createChooser(shareIntent, "Поделиться адресом"))
+            } else {
+                Toast.makeText(this, "Нет адреса для отправки", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnExportIdentity.setOnClickListener {
+            showExportIdentityWarning()
+        }
+
+        btnImportIdentity.setOnClickListener {
+            openIdentityLauncher.launch(arrayOf("text/plain", "text/*"))
+        }
+
+        btnExportContacts.setOnClickListener {
+            showExportContactsWarning()
+        }
+
+        btnImportContacts.setOnClickListener {
+            openContactsLauncher.launch(arrayOf("text/plain", "text/*"))
+        }
+
+        btnBack.setOnClickListener {
+            finish()
+        }
+    }
+
+    // =====================================================================
+    // IDENTITY EXPORT / IMPORT
+    // =====================================================================
+
+    private fun showExportIdentityWarning() {
+        val publicKey = I2PManager.getMyPublicKey()
+        val privateKey = I2PManager.getInstance()?.getPrivateDestination()
+
+        if (publicKey.isNullOrBlank() || privateKey.isNullOrBlank()) {
+            Toast.makeText(this, "Ключи не сгенерированы", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Внимание")
+            .setMessage(
+                "Вы экспортируете приватный ключ.\n\n" +
+                "Этот файл позволяет восстановить вашу identity на другом устройстве.\n\n" +
+                "Никому не показывайте этот файл!\n" +
+                "Храните его в надёжном месте."
+            )
+            .setPositiveButton("Экспортировать") { _, _ ->
+                val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
+                val address = I2PManager.getMyAddress()
+                val filename = "i2p_identity_${address.take(12)}_$timestamp.txt"
+                saveIdentityLauncher.launch(filename)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun doExportIdentity(uri: Uri) {
+        try {
+            val publicKey = I2PManager.getMyPublicKey()
+            val privateKey = I2PManager.getInstance()?.getPrivateDestination()
+            val address = I2PManager.getMyAddress()
+
+            if (publicKey.isNullOrBlank() || privateKey.isNullOrBlank()) {
+                Toast.makeText(this, "Ключи не найдены", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val content = buildString {
+                appendLine("# =============================================")
+                appendLine("# I2P MESSENGER IDENTITY EXPORT")
+                appendLine("# =============================================")
+                appendLine("#")
+                appendLine("# ВНИМАНИЕ: ЭТОТ ФАЙЛ СОДЕРЖИТ ПРИВАТНЫЙ КЛЮЧ")
+                appendLine("# Храните его в безопасном месте")
+                appendLine("# Никому не показывайте")
+                appendLine("#")
+                appendLine("# Сгенерирован: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}")
+                appendLine("# Base32 адрес: $address")
+                appendLine("#")
+                appendLine("# =============================================")
+                appendLine("# ПУБЛИЧНЫЙ КЛЮЧ")
+                appendLine("# =============================================")
+                appendLine(publicKey)
+                appendLine("#")
+                appendLine("# =============================================")
+                appendLine("# ПРИВАТНЫЙ КЛЮЧ")
+                appendLine("# =============================================")
+                appendLine(privateKey)
+            }
+
+            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                outputStream.write(content.toByteArray(Charsets.UTF_8))
+                outputStream.flush()
+            }
+
+            Toast.makeText(this, "Identity экспортирована", Toast.LENGTH_LONG).show()
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка экспорта: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    private fun doImportIdentity(uri: Uri) {
+        try {
+            val content = contentResolver.openInputStream(uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                    reader.readText()
+                }
+            } ?: run {
+                Toast.makeText(this, "Не удалось прочитать файл", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val keys = parseIdentityFile(content)
+            if (keys == null) {
+                Toast.makeText(this, "Не удалось распарсить файл. Проверьте формат.", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            val (publicKey, privateKey) = keys
+            val address = extractAddressFromFile(content) ?: "неизвестен"
+
+            AlertDialog.Builder(this)
+                .setTitle("Восстановление identity")
+                .setMessage(
+                    "Файл содержит identity для адреса:\n\n$address\n\n" +
+                    "Восстановить эту identity на этом устройстве?\n\n" +
+                    "Текущая identity будет заменена."
+                )
+                .setPositiveButton("Восстановить") { _, _ ->
+                    doRestoreIdentity(publicKey, privateKey)
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка импорта: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    private fun parseIdentityFile(content: String): Pair<String, String>? {
+        val lines = content.lines()
+        var publicKey: String? = null
+        var privateKey: String? = null
+
+        var inPublicSection = false
+        var inPrivateSection = false
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            when {
+                trimmed.contains("ПУБЛИЧНЫЙ КЛЮЧ") || trimmed.contains("PUBLIC") -> {
+                    inPublicSection = true
+                    inPrivateSection = false
+                }
+                trimmed.contains("ПРИВАТНЫЙ КЛЮЧ") || trimmed.contains("PRIVATE") -> {
+                    inPublicSection = false
+                    inPrivateSection = true
+                }
+                trimmed.startsWith("#") || trimmed.isEmpty() -> continue
+                inPublicSection && publicKey == null && trimmed.length > 100 -> {
+                    publicKey = trimmed
+                }
+                inPrivateSection && privateKey == null && trimmed.length > 100 -> {
+                    privateKey = trimmed
+                }
+            }
+        }
+
+        return if (publicKey != null && privateKey != null) {
+            Pair(publicKey, privateKey)
+        } else {
+            null
+        }
+    }
+
+    private fun extractAddressFromFile(content: String): String? {
+        val lines = content.lines()
+        for (line in lines) {
+            if (line.contains("Base32 адрес:")) {
+                return line.substringAfter("Base32 адрес:").trim()
+            }
+        }
+        return null
+    }
+
+    private fun doRestoreIdentity(publicKey: String, privateKey: String) {
+        try {
+            val prefs = getSharedPreferences("i2p_identity", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString("public_destination", publicKey)
+                .putString("private_destination", privateKey)
+                .apply()
+
+            Toast.makeText(this, "Identity восстановлена. Перезапустите приложение.", Toast.LENGTH_LONG).show()
+
+            AlertDialog.Builder(this)
+                .setTitle("Identity восстановлена")
+                .setMessage("Для применения изменений нужно перезапустить I2P сервис. Перезапустить сейчас?")
+                .setPositiveButton("Да") { _, _ ->
+                    stopService(Intent(this, I2PService::class.java))
+                    startService(Intent(this, I2PService::class.java))
+                    finish()
+                }
+                .setNegativeButton("Позже") { _, _ ->
+                    finish()
+                }
+                .show()
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    // =====================================================================
+    // CONTACTS EXPORT / IMPORT
+    // =====================================================================
+
+    private fun showExportContactsWarning() {
+        AlertDialog.Builder(this)
+            .setTitle("Экспорт контактов")
+            .setMessage(
+                "Будут экспортированы все контакты:\n" +
+                "- Имя\n" +
+                "- Base32 адрес\n" +
+                "- Публичный ключ (если известен)\n\n" +
+                "Файл не содержит приватных ключей."
+            )
+            .setPositiveButton("Экспортировать") { _, _ ->
+                val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
+                val filename = "i2p_contacts_$timestamp.txt"
+                saveContactsLauncher.launch(filename)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun doExportContacts(uri: Uri) {
+        try {
+            val db = AppDatabase.getInstance(this)
+            val contactRepo = ContactRepository(db)
+
+            lifecycleScope.launch {
+                val contacts = contactRepo.getAllContactsSync()
+
+                if (contacts.isEmpty()) {
+                    Toast.makeText(this@ProfileActivity, "Нет контактов для экспорта", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                val content = buildString {
+                    appendLine("# =============================================")
+                    appendLine("# I2P MESSENGER CONTACTS EXPORT")
+                    appendLine("# =============================================")
+                    appendLine("#")
+                    appendLine("# Экспортировано: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}")
+                    appendLine("# Всего контактов: ${contacts.size}")
+                    appendLine("#")
+                    appendLine("# Формат: NAME | ADDRESS | PUBLIC_KEY")
+                    appendLine("# =============================================")
+                    appendLine()
+
+                    for (contact in contacts) {
+                        val name = contact.name
+                        val address = contact.address
+                        val key = contact.publicKeyBase64 ?: ""
+                        appendLine("$name | $address | $key")
+                    }
+                }
+
+                contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    outputStream.write(content.toByteArray(Charsets.UTF_8))
+                    outputStream.flush()
+                }
+
+                Toast.makeText(
+                    this@ProfileActivity,
+                    "Экспортировано ${contacts.size} контактов",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка экспорта: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    private fun doImportContacts(uri: Uri) {
+        try {
+            val content = contentResolver.openInputStream(uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                    reader.readText()
+                }
+            } ?: run {
+                Toast.makeText(this, "Не удалось прочитать файл", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val contacts = parseContactsFile(content)
+            if (contacts.isEmpty()) {
+                Toast.makeText(this, "Не найдено контактов в файле", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            AlertDialog.Builder(this)
+                .setTitle("Импорт контактов")
+                .setMessage("Найдено ${contacts.size} контактов. Импортировать?")
+                .setPositiveButton("Импортировать") { _, _ ->
+                    doImportContactsInternal(contacts)
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка импорта: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    private fun parseContactsFile(content: String): List<Triple<String, String, String>> {
+        val result = mutableListOf<Triple<String, String, String>>()
+        val lines = content.lines()
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
+
+            val parts = trimmed.split("|").map { it.trim() }
+            if (parts.size >= 2) {
+                val name = parts[0]
+                val address = parts[1].removeSuffix(".b32.i2p").lowercase()
+                val key = if (parts.size >= 3) parts[2] else ""
+                if (name.isNotEmpty() && address.isNotEmpty()) {
+                    result.add(Triple(name, address, key))
+                }
+            }
+        }
+
+        return result
+    }
+
+    private fun doImportContactsInternal(
+        contacts: List<Triple<String, String, String>>
+    ) {
+        val db = AppDatabase.getInstance(this)
+        val contactRepo = ContactRepository(db)
+
+        var imported = 0
+        var skipped = 0
+
+        lifecycleScope.launch {
+            for ((name, address, key) in contacts) {
+                try {
+                    val existing = contactRepo.getContactByAddress(address)
+                    if (existing == null) {
+                        contactRepo.addContact(name, address)
+                        if (key.isNotEmpty()) {
+                            contactRepo.updatePublicKey(address, key)
+                        }
+                        imported++
+                    } else {
+                        if (key.isNotEmpty() && existing.publicKeyBase64 != key) {
+                            contactRepo.updatePublicKey(address, key)
+                        }
+                        skipped++
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("ProfileActivity", "Ошибка импорта контакта $address", e)
+                }
+            }
+
+            val message = if (imported > 0) {
+                "Импортировано: $imported, пропущено: $skipped"
+            } else {
+                "Все контакты уже существуют ($skipped)"
+            }
+
+            Toast.makeText(this@ProfileActivity, message, Toast.LENGTH_LONG).show()
+            finish()
+        }
+    }
+
+    // =====================================================================
+    // HELPERS
+    // =====================================================================
+
+    private fun copyToClipboard(text: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("I2P Address", text)
+        clipboard.setPrimaryClip(clip)
+    }
+}
+
+
+===== FILE: app/src/main/kotlin/ru/servertronix/i2pmessenger/Message.kt =====
+package ru.servertronix.i2pmessenger
+
+data class Message(
+    val id: String,
+    val text: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isMine: Boolean,
+    val status: String = "SENT"
+)
 
 
 ===== FILE: app/src/main/kotlin/ru/servertronix/i2pmessenger/presence/PresencePacket.kt =====
@@ -1596,536 +2141,65 @@ class PresenceManager(
 }
 
 
-===== FILE: app/src/main/kotlin/ru/servertronix/i2pmessenger/ProfileActivity.kt =====
+===== FILE: app/src/main/kotlin/ru/servertronix/i2pmessenger/MessageAdapter.kt =====
 package ru.servertronix.i2pmessenger
 
-import android.app.AlertDialog
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
-import android.widget.Button
-import android.widget.EditText
+import android.view.ViewGroup
 import android.widget.TextView
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import ru.servertronix.i2pmessenger.data.local.AppDatabase
-import ru.servertronix.i2pmessenger.data.repository.ContactRepository
-import ru.servertronix.i2pmessenger.i2p.I2PManager
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import androidx.recyclerview.widget.RecyclerView
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
-class ProfileActivity : AppCompatActivity() {
+class MessageAdapter(
+    private var messages: List<Message>
+) : RecyclerView.Adapter<MessageAdapter.MessageViewHolder>() {
 
-    private lateinit var tvMyAddress: TextView
-    private lateinit var tvMyBase64: TextView
-    private lateinit var tvStatus: TextView
-    private lateinit var statusIndicator: View
-    private lateinit var btnCopyAddress: Button
-    private lateinit var btnShareAddress: Button
-    private lateinit var btnExportIdentity: Button
-    private lateinit var btnImportIdentity: Button
-    private lateinit var btnExportContacts: Button
-    private lateinit var btnImportContacts: Button
-    private lateinit var btnBack: Button
+    override fun getItemViewType(position: Int): Int {
+        return if (messages[position].isMine) VIEW_TYPE_MINE else VIEW_TYPE_OTHER
+    }
 
-    // =====================================================================
-    // SAF LAUNCHERS
-    // =====================================================================
-
-    private val saveIdentityLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain")
-    ) { uri ->
-        if (uri != null) {
-            doExportIdentity(uri)
-        } else {
-            Toast.makeText(this, "Экспорт отменён", Toast.LENGTH_SHORT).show()
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return when (viewType) {
+            VIEW_TYPE_MINE -> {
+                val view = inflater.inflate(R.layout.item_message_mine, parent, false)
+                MessageViewHolder(view)
+            }
+            else -> {
+                val view = inflater.inflate(R.layout.item_message_other, parent, false)
+                MessageViewHolder(view)
+            }
         }
     }
 
-    private val openIdentityLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            doImportIdentity(uri)
-        } else {
-            Toast.makeText(this, "Импорт отменён", Toast.LENGTH_SHORT).show()
+    override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
+        val message = messages[position]
+        holder.bind(message)
+    }
+
+    override fun getItemCount(): Int = messages.size
+
+    fun updateMessages(newMessages: List<Message>) {
+        messages = newMessages
+        notifyDataSetChanged()
+    }
+
+    inner class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val tvText: TextView = itemView.findViewById(R.id.tvMessageText)
+        private val tvTime: TextView = itemView.findViewById(R.id.tvMessageTime)
+
+        fun bind(message: Message) {
+            tvText.text = message.text
+            val dateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            tvTime.text = dateFormat.format(Date(message.timestamp))
         }
     }
 
-    private val saveContactsLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain")
-    ) { uri ->
-        if (uri != null) {
-            doExportContacts(uri)
-        } else {
-            Toast.makeText(this, "Экспорт контактов отменён", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private val openContactsLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            doImportContacts(uri)
-        } else {
-            Toast.makeText(this, "Импорт контактов отменён", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_profile)
-
-        tvMyAddress = findViewById(R.id.tvMyAddress)
-        tvMyBase64 = findViewById(R.id.tvMyBase64)
-        tvStatus = findViewById(R.id.tvStatus)
-        statusIndicator = findViewById(R.id.statusIndicator)
-        btnCopyAddress = findViewById(R.id.btnCopyAddress)
-        btnShareAddress = findViewById(R.id.btnShareAddress)
-        btnExportIdentity = findViewById(R.id.btnExportIdentity)
-        btnImportIdentity = findViewById(R.id.btnImportIdentity)
-        btnExportContacts = findViewById(R.id.btnExportContacts)
-        btnImportContacts = findViewById(R.id.btnImportContacts)
-        btnBack = findViewById(R.id.btnBack)
-
-        val base32 = I2PManager.getMyAddress()
-        tvMyAddress.text = if (base32.isNotEmpty()) base32 else "Не удалось получить адрес"
-        val base64 = I2PManager.getMyPublicKey()
-        tvMyBase64.text = base64 ?: "Ключ недоступен"
-
-        lifecycleScope.launch {
-            I2PManager.state.collectLatest { state ->
-                val (text, colorRes) = when (state) {
-                    is I2PConnectionState.Connected -> "Онлайн" to R.drawable.indicator_online
-                    is I2PConnectionState.Disconnected -> "Офлайн" to R.drawable.indicator_offline
-                    is I2PConnectionState.Connecting -> "Подключение..." to R.drawable.indicator_connecting
-                    is I2PConnectionState.Error -> "Ошибка: ${state.message}" to R.drawable.indicator_offline
-                }
-                tvStatus.text = text
-                statusIndicator.setBackgroundResource(colorRes)
-            }
-        }
-
-        btnCopyAddress.setOnClickListener {
-            copyToClipboard(tvMyAddress.text.toString())
-            Toast.makeText(this, "Адрес скопирован", Toast.LENGTH_SHORT).show()
-        }
-
-        btnShareAddress.setOnClickListener {
-            val address = tvMyAddress.text.toString()
-            if (address.isNotEmpty() && address != "Не удалось получить адрес") {
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, "Мой I2P адрес: $address")
-                }
-                startActivity(Intent.createChooser(shareIntent, "Поделиться адресом"))
-            } else {
-                Toast.makeText(this, "Нет адреса для отправки", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        btnExportIdentity.setOnClickListener {
-            showExportIdentityWarning()
-        }
-
-        btnImportIdentity.setOnClickListener {
-            openIdentityLauncher.launch(arrayOf("text/plain", "text/*"))
-        }
-
-        btnExportContacts.setOnClickListener {
-            showExportContactsWarning()
-        }
-
-        btnImportContacts.setOnClickListener {
-            openContactsLauncher.launch(arrayOf("text/plain", "text/*"))
-        }
-
-        btnBack.setOnClickListener {
-            finish()
-        }
-    }
-
-    // =====================================================================
-    // IDENTITY EXPORT / IMPORT
-    // =====================================================================
-
-    private fun showExportIdentityWarning() {
-        val publicKey = I2PManager.getMyPublicKey()
-        val privateKey = I2PManager.getInstance()?.getPrivateDestination()
-
-        if (publicKey.isNullOrBlank() || privateKey.isNullOrBlank()) {
-            Toast.makeText(this, "Ключи не сгенерированы", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Внимание")
-            .setMessage(
-                "Вы экспортируете приватный ключ.\n\n" +
-                "Этот файл позволяет восстановить вашу identity на другом устройстве.\n\n" +
-                "Никому не показывайте этот файл!\n" +
-                "Храните его в надёжном месте."
-            )
-            .setPositiveButton("Экспортировать") { _, _ ->
-                val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
-                val address = I2PManager.getMyAddress()
-                val filename = "i2p_identity_${address.take(12)}_$timestamp.txt"
-                saveIdentityLauncher.launch(filename)
-            }
-            .setNegativeButton("Отмена", null)
-            .show()
-    }
-
-    private fun doExportIdentity(uri: Uri) {
-        try {
-            val publicKey = I2PManager.getMyPublicKey()
-            val privateKey = I2PManager.getInstance()?.getPrivateDestination()
-            val address = I2PManager.getMyAddress()
-
-            if (publicKey.isNullOrBlank() || privateKey.isNullOrBlank()) {
-                Toast.makeText(this, "Ключи не найдены", Toast.LENGTH_SHORT).show()
-                return
-            }
-
-            val content = buildString {
-                appendLine("# =============================================")
-                appendLine("# I2P MESSENGER IDENTITY EXPORT")
-                appendLine("# =============================================")
-                appendLine("#")
-                appendLine("# ВНИМАНИЕ: ЭТОТ ФАЙЛ СОДЕРЖИТ ПРИВАТНЫЙ КЛЮЧ")
-                appendLine("# Храните его в безопасном месте")
-                appendLine("# Никому не показывайте")
-                appendLine("#")
-                appendLine("# Сгенерирован: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}")
-                appendLine("# Base32 адрес: $address")
-                appendLine("#")
-                appendLine("# =============================================")
-                appendLine("# ПУБЛИЧНЫЙ КЛЮЧ")
-                appendLine("# =============================================")
-                appendLine(publicKey)
-                appendLine("#")
-                appendLine("# =============================================")
-                appendLine("# ПРИВАТНЫЙ КЛЮЧ")
-                appendLine("# =============================================")
-                appendLine(privateKey)
-            }
-
-            contentResolver.openOutputStream(uri)?.use { outputStream ->
-                outputStream.write(content.toByteArray(Charsets.UTF_8))
-                outputStream.flush()
-            }
-
-            Toast.makeText(this, "Identity экспортирована", Toast.LENGTH_LONG).show()
-
-        } catch (e: Exception) {
-            Toast.makeText(this, "Ошибка экспорта: ${e.message}", Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-        }
-    }
-
-    private fun doImportIdentity(uri: Uri) {
-        try {
-            val content = contentResolver.openInputStream(uri)?.use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                    reader.readText()
-                }
-            } ?: run {
-                Toast.makeText(this, "Не удалось прочитать файл", Toast.LENGTH_SHORT).show()
-                return
-            }
-
-            val keys = parseIdentityFile(content)
-            if (keys == null) {
-                Toast.makeText(this, "Не удалось распарсить файл. Проверьте формат.", Toast.LENGTH_LONG).show()
-                return
-            }
-
-            val (publicKey, privateKey) = keys
-            val address = extractAddressFromFile(content) ?: "неизвестен"
-
-            AlertDialog.Builder(this)
-                .setTitle("Восстановление identity")
-                .setMessage(
-                    "Файл содержит identity для адреса:\n\n$address\n\n" +
-                    "Восстановить эту identity на этом устройстве?\n\n" +
-                    "Текущая identity будет заменена."
-                )
-                .setPositiveButton("Восстановить") { _, _ ->
-                    doRestoreIdentity(publicKey, privateKey)
-                }
-                .setNegativeButton("Отмена", null)
-                .show()
-
-        } catch (e: Exception) {
-            Toast.makeText(this, "Ошибка импорта: ${e.message}", Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-        }
-    }
-
-    private fun parseIdentityFile(content: String): Pair<String, String>? {
-        val lines = content.lines()
-        var publicKey: String? = null
-        var privateKey: String? = null
-
-        var inPublicSection = false
-        var inPrivateSection = false
-
-        for (line in lines) {
-            val trimmed = line.trim()
-            when {
-                trimmed.contains("ПУБЛИЧНЫЙ КЛЮЧ") || trimmed.contains("PUBLIC") -> {
-                    inPublicSection = true
-                    inPrivateSection = false
-                }
-                trimmed.contains("ПРИВАТНЫЙ КЛЮЧ") || trimmed.contains("PRIVATE") -> {
-                    inPublicSection = false
-                    inPrivateSection = true
-                }
-                trimmed.startsWith("#") || trimmed.isEmpty() -> continue
-                inPublicSection && publicKey == null && trimmed.length > 100 -> {
-                    publicKey = trimmed
-                }
-                inPrivateSection && privateKey == null && trimmed.length > 100 -> {
-                    privateKey = trimmed
-                }
-            }
-        }
-
-        return if (publicKey != null && privateKey != null) {
-            Pair(publicKey, privateKey)
-        } else {
-            null
-        }
-    }
-
-    private fun extractAddressFromFile(content: String): String? {
-        val lines = content.lines()
-        for (line in lines) {
-            if (line.contains("Base32 адрес:")) {
-                return line.substringAfter("Base32 адрес:").trim()
-            }
-        }
-        return null
-    }
-
-    private fun doRestoreIdentity(publicKey: String, privateKey: String) {
-        try {
-            val prefs = getSharedPreferences("i2p_identity", Context.MODE_PRIVATE)
-            prefs.edit()
-                .putString("public_destination", publicKey)
-                .putString("private_destination", privateKey)
-                .apply()
-
-            Toast.makeText(this, "Identity восстановлена. Перезапустите приложение.", Toast.LENGTH_LONG).show()
-
-            AlertDialog.Builder(this)
-                .setTitle("Identity восстановлена")
-                .setMessage("Для применения изменений нужно перезапустить I2P сервис. Перезапустить сейчас?")
-                .setPositiveButton("Да") { _, _ ->
-                    stopService(Intent(this, I2PService::class.java))
-                    startService(Intent(this, I2PService::class.java))
-                    finish()
-                }
-                .setNegativeButton("Позже") { _, _ ->
-                    finish()
-                }
-                .show()
-
-        } catch (e: Exception) {
-            Toast.makeText(this, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-        }
-    }
-
-    // =====================================================================
-    // CONTACTS EXPORT / IMPORT
-    // =====================================================================
-
-    private fun showExportContactsWarning() {
-        AlertDialog.Builder(this)
-            .setTitle("Экспорт контактов")
-            .setMessage(
-                "Будут экспортированы все контакты:\n" +
-                "- Имя\n" +
-                "- Base32 адрес\n" +
-                "- Публичный ключ (если известен)\n\n" +
-                "Файл не содержит приватных ключей."
-            )
-            .setPositiveButton("Экспортировать") { _, _ ->
-                val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
-                val filename = "i2p_contacts_$timestamp.txt"
-                saveContactsLauncher.launch(filename)
-            }
-            .setNegativeButton("Отмена", null)
-            .show()
-    }
-
-    private fun doExportContacts(uri: Uri) {
-        try {
-            val db = AppDatabase.getInstance(this)
-            val contactRepo = ContactRepository(db)
-
-            lifecycleScope.launch {
-                val contacts = contactRepo.getAllContactsSync()
-
-                if (contacts.isEmpty()) {
-                    Toast.makeText(this@ProfileActivity, "Нет контактов для экспорта", Toast.LENGTH_SHORT).show()
-                    return@launch
-                }
-
-                val content = buildString {
-                    appendLine("# =============================================")
-                    appendLine("# I2P MESSENGER CONTACTS EXPORT")
-                    appendLine("# =============================================")
-                    appendLine("#")
-                    appendLine("# Экспортировано: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}")
-                    appendLine("# Всего контактов: ${contacts.size}")
-                    appendLine("#")
-                    appendLine("# Формат: NAME | ADDRESS | PUBLIC_KEY")
-                    appendLine("# =============================================")
-                    appendLine()
-
-                    for (contact in contacts) {
-                        val name = contact.name
-                        val address = contact.address
-                        val key = contact.publicKeyBase64 ?: ""
-                        appendLine("$name | $address | $key")
-                    }
-                }
-
-                contentResolver.openOutputStream(uri)?.use { outputStream ->
-                    outputStream.write(content.toByteArray(Charsets.UTF_8))
-                    outputStream.flush()
-                }
-
-                Toast.makeText(
-                    this@ProfileActivity,
-                    "Экспортировано ${contacts.size} контактов",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-
-        } catch (e: Exception) {
-            Toast.makeText(this, "Ошибка экспорта: ${e.message}", Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-        }
-    }
-
-    private fun doImportContacts(uri: Uri) {
-        try {
-            val content = contentResolver.openInputStream(uri)?.use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                    reader.readText()
-                }
-            } ?: run {
-                Toast.makeText(this, "Не удалось прочитать файл", Toast.LENGTH_SHORT).show()
-                return
-            }
-
-            val contacts = parseContactsFile(content)
-            if (contacts.isEmpty()) {
-                Toast.makeText(this, "Не найдено контактов в файле", Toast.LENGTH_LONG).show()
-                return
-            }
-
-            AlertDialog.Builder(this)
-                .setTitle("Импорт контактов")
-                .setMessage("Найдено ${contacts.size} контактов. Импортировать?")
-                .setPositiveButton("Импортировать") { _, _ ->
-                    doImportContactsInternal(contacts)
-                }
-                .setNegativeButton("Отмена", null)
-                .show()
-
-        } catch (e: Exception) {
-            Toast.makeText(this, "Ошибка импорта: ${e.message}", Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-        }
-    }
-
-    private fun parseContactsFile(content: String): List<Triple<String, String, String>> {
-        val result = mutableListOf<Triple<String, String, String>>()
-        val lines = content.lines()
-
-        for (line in lines) {
-            val trimmed = line.trim()
-            if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
-
-            val parts = trimmed.split("|").map { it.trim() }
-            if (parts.size >= 2) {
-                val name = parts[0]
-                val address = parts[1].removeSuffix(".b32.i2p").lowercase()
-                val key = if (parts.size >= 3) parts[2] else ""
-                if (name.isNotEmpty() && address.isNotEmpty()) {
-                    result.add(Triple(name, address, key))
-                }
-            }
-        }
-
-        return result
-    }
-
-    private fun doImportContactsInternal(
-        contacts: List<Triple<String, String, String>>
-    ) {
-        val db = AppDatabase.getInstance(this)
-        val contactRepo = ContactRepository(db)
-
-        var imported = 0
-        var skipped = 0
-
-        lifecycleScope.launch {
-            for ((name, address, key) in contacts) {
-                try {
-                    val existing = contactRepo.getContactByAddress(address)
-                    if (existing == null) {
-                        contactRepo.addContact(name, address)
-                        if (key.isNotEmpty()) {
-                            contactRepo.updatePublicKey(address, key)
-                        }
-                        imported++
-                    } else {
-                        if (key.isNotEmpty() && existing.publicKeyBase64 != key) {
-                            contactRepo.updatePublicKey(address, key)
-                        }
-                        skipped++
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("ProfileActivity", "Ошибка импорта контакта $address", e)
-                }
-            }
-
-            val message = if (imported > 0) {
-                "Импортировано: $imported, пропущено: $skipped"
-            } else {
-                "Все контакты уже существуют ($skipped)"
-            }
-
-            Toast.makeText(this@ProfileActivity, message, Toast.LENGTH_LONG).show()
-            finish()
-        }
-    }
-
-    // =====================================================================
-    // HELPERS
-    // =====================================================================
-
-    private fun copyToClipboard(text: String) {
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("I2P Address", text)
-        clipboard.setPrimaryClip(clip)
+    companion object {
+        private const val VIEW_TYPE_MINE = 1
+        private const val VIEW_TYPE_OTHER = 2
     }
 }
 
@@ -2134,13 +2208,15 @@ class ProfileActivity : AppCompatActivity() {
 package ru.servertronix.i2pmessenger.data.repository
 
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import ru.servertronix.i2pmessenger.Contact
 import ru.servertronix.i2pmessenger.data.local.AppDatabase
 import ru.servertronix.i2pmessenger.data.local.ContactEntity
-import ru.servertronix.i2pmessenger.i2p.SamConnection
 import ru.servertronix.i2pmessenger.i2p.I2PManager
+import ru.servertronix.i2pmessenger.i2p.SamConnection
 
 class ContactRepository(
     private val db: AppDatabase,
@@ -2149,9 +2225,14 @@ class ContactRepository(
 
     companion object {
         private const val TAG = "ContactRepository"
+        private const val DESTINATION_CACHE_TTL_MS = 5 * 60 * 1000L // 5 минут
     }
 
     private val dao = db.contactDao()
+
+    // In-memory cache: normalized base32 address -> (destination, expiry timestamp)
+    private val destinationCache = mutableMapOf<String, CachedDestination>()
+    private data class CachedDestination(val destination: String, val expiresAt: Long)
 
     // =====================================================================
     // ADDRESS HELPERS
@@ -2180,26 +2261,26 @@ class ContactRepository(
         }
     }
 
-    suspend fun getAllContactsSync(): List<Contact> {
+    suspend fun getAllContactsSync(): List<Contact> = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] getAllContactsSync() called")
         val entities = db.contactDao().getAllContactsSync()
         Log.d(TAG, "🔍 [REPO] getAllContactsSync: entities.size=${entities.size}")
         entities.forEach { entity ->
             Log.d(TAG, "🔍 [REPO]   entity: id=${entity.id}, address=${entity.address}, hasKey=${entity.publicKeyBase64 != null}")
         }
-        return entities.map { it.toContact() }
+        entities.map { it.toContact() }
     }
 
-    suspend fun getContactsWithDestinationSync(): List<Contact> {
+    suspend fun getContactsWithDestinationSync(): List<Contact> = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] getContactsWithDestinationSync() called")
         val all = db.contactDao().getAllContactsSync()
         Log.d(TAG, "🔍 [REPO]   всего контактов: ${all.size}")
         val filtered = all.filter { !it.publicKeyBase64.isNullOrBlank() }
         Log.d(TAG, "🔍 [REPO]   с ключами: ${filtered.size}")
-        return filtered.map { it.toContact() }
+        filtered.map { it.toContact() }
     }
 
-    suspend fun getDestinationBase64ListSync(): List<String> {
+    suspend fun getDestinationBase64ListSync(): List<String> = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] getDestinationBase64ListSync() START")
         val all = db.contactDao().getAllContactsSync()
         Log.d(TAG, "🔍 [REPO]   всего контактов: ${all.size}")
@@ -2209,14 +2290,14 @@ class ContactRepository(
         val list = all.mapNotNull { it.publicKeyBase64 }.filter { it.isNotBlank() }
         Log.d(TAG, "🔍 [REPO]   контактов с ключами: ${list.size}")
         Log.d(TAG, "🔍 [REPO] getDestinationBase64ListSync() END")
-        return list
+        list
     }
 
     // =====================================================================
     // ADD CONTACT
     // =====================================================================
 
-    suspend fun addContact(name: String, address: String) {
+    suspend fun addContact(name: String, address: String) = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] addContact() START: name=$name, address=$address")
         val normalized = normalizeAddress(address)
         Log.d(TAG, "🔍 [REPO]   normalized=$normalized")
@@ -2228,7 +2309,7 @@ class ContactRepository(
 
         if (db.contactDao().getContactByAddress(normalized) != null) {
             Log.d(TAG, "🔍 [REPO]   контакт уже существует")
-            return
+            return@withContext
         }
 
         val entity = ContactEntity(
@@ -2241,7 +2322,7 @@ class ContactRepository(
         Log.d(TAG, "🔍 [REPO] ✅ addContact() завершён")
     }
 
-    suspend fun addContactAndResolve(name: String, address: String): String? {
+    suspend fun addContactAndResolve(name: String, address: String): String? = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] addContactAndResolve() START: name=$name, address=$address")
         val normalized = normalizeAddress(address)
         Log.d(TAG, "🔍 [REPO]   normalized=$normalized")
@@ -2280,20 +2361,28 @@ class ContactRepository(
         }
 
         Log.d(TAG, "🔍 [REPO] addContactAndResolve() END")
-        return destination
+        destination
     }
 
     // =====================================================================
-    // DESTINATION LOOKUP
+    // DESTINATION LOOKUP (with in-memory cache)
     // =====================================================================
 
-    suspend fun resolveDestination(address: String): String? {
+    suspend fun resolveDestination(address: String): String? = withContext(Dispatchers.IO) {
         val normalized = normalizeAddress(address)
         Log.d(TAG, "🔍 [REPO] resolveDestination() START: normalized=$normalized")
 
         if (normalized.isBlank()) {
             Log.w(TAG, "🔍 [REPO]   адрес пустой")
-            return null
+            return@withContext null
+        }
+
+        // Check cache first
+        val cached = destinationCache[normalized]
+        val now = System.currentTimeMillis()
+        if (cached != null && cached.expiresAt > now) {
+            Log.d(TAG, "🔍 [REPO]   cache HIT for $normalized")
+            return@withContext cached.destination
         }
 
         val base32 = toBase32Address(normalized)
@@ -2303,13 +2392,17 @@ class ContactRepository(
         Log.d(TAG, "🔍 [REPO]   sam=${if (sam != null) "current I2PManager connection" else "unavailable"}")
         if (sam == null) {
             Log.w(TAG, "🔍 [REPO]   SAM недоступен, lookup будет повторён после восстановления")
-            return null
+            return@withContext null
         }
 
-        return try {
+        try {
             Log.d(TAG, "🔍 [REPO]   вызываем sam.lookupDestination($base32)")
             val destination = sam.lookupDestination(base32)
             Log.d(TAG, "🔍 [REPO]   sam.lookupDestination вернул ${if (destination != null) "ключ (${destination.take(32)}...)" else "null"}")
+            if (destination != null) {
+                destinationCache[normalized] = CachedDestination(destination, now + DESTINATION_CACHE_TTL_MS)
+                Log.d(TAG, "🔍 [REPO]   cached for ${DESTINATION_CACHE_TTL_MS / 1000} sec")
+            }
             destination
         } catch (e: Exception) {
             Log.e(TAG, "🔍 [REPO] ❌ ошибка resolveDestination", e)
@@ -2317,88 +2410,103 @@ class ContactRepository(
         }
     }
 
-    suspend fun resolveAndSaveDestination(address: String): String? {
+    /** Инвалидирует кеш для адреса (например, после ручного обновления ключа) */
+    internal fun invalidateDestinationCache(address: String) {
+        val normalized = normalizeAddress(address)
+        destinationCache.remove(normalized)
+        Log.d(TAG, "🔍 [REPO] cache invalidated for $normalized")
+    }
+
+    /** Полная очистка кеша (например, при смене SAM-хоста) */
+    internal fun clearDestinationCache() {
+        destinationCache.clear()
+        Log.d(TAG, "🔍 [REPO] destination cache cleared")
+    }
+
+    suspend fun resolveAndSaveDestination(address: String): String? = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] resolveAndSaveDestination() START: address=$address")
         val normalized = normalizeAddress(address)
         val destination = resolveDestination(normalized)
         if (destination.isNullOrBlank()) {
             Log.w(TAG, "🔍 [REPO]   destination null или пустой")
-            return null
+            return@withContext null
         }
         Log.d(TAG, "🔍 [REPO]   сохраняем destination в БД")
         db.contactDao().updatePublicKey(normalized, destination)
         Log.d(TAG, "✅ [REPO] resolveAndSaveDestination() OK")
-        return destination
+        destination
     }
 
- suspend fun resolveMissingDestinations(): Int {
-    Log.d(TAG, "🔍 [REPO] resolveMissingDestinations() START")
-    val contacts = db.contactDao().getAllContactsSync()
-    Log.d(TAG, "🔍 [REPO]   всего контактов: ${contacts.size}")
-    var updated = 0
-    for (contact in contacts) {
-        if (!contact.publicKeyBase64.isNullOrBlank()) {
-            Log.d(TAG, "🔍 [REPO]   контакт ${contact.address} уже имеет ключ, пропускаем")
-            continue
-        }
-        Log.d(TAG, "🔍 [REPO]   пытаемся разрешить контакт ${contact.address}")
-        try {
-            val destination = resolveAndSaveDestination(contact.address)
-            if (destination != null) {
-                updated++
-                Log.d(TAG, "🔍 [REPO]   ✅ ключ сохранён для ${contact.address}")
-            } else {
-                Log.w(TAG, "🔍 [REPO]   ⚠️ не удалось разрешить ${contact.address}")
+    suspend fun resolveMissingDestinations(): Int = withContext(Dispatchers.IO) {
+        Log.d(TAG, "🔍 [REPO] resolveMissingDestinations() START")
+        val contacts = db.contactDao().getAllContactsSync()
+        Log.d(TAG, "🔍 [REPO]   всего контактов: ${contacts.size}")
+        var updated = 0
+        for (contact in contacts) {
+            if (!contact.publicKeyBase64.isNullOrBlank()) {
+                Log.d(TAG, "🔍 [REPO]   контакт ${contact.address} уже имеет ключ, пропускаем")
+                continue
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "🔍 [REPO] ❌ ошибка resolve для ${contact.address}", e)
+            Log.d(TAG, "🔍 [REPO]   пытаемся разрешить контакт ${contact.address}")
+            try {
+                val destination = resolveAndSaveDestination(contact.address)
+                if (destination != null) {
+                    updated++
+                    Log.d(TAG, "🔍 [REPO]   ✅ ключ сохранён для ${contact.address}")
+                } else {
+                    Log.w(TAG, "🔍 [REPO]   ⚠️ не удалось разрешить ${contact.address}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "🔍 [REPO] ❌ ошибка resolve для ${contact.address}", e)
+            }
         }
+        Log.d(TAG, "🔍 [REPO] resolveMissingDestinations() END, обновлено $updated контактов")
+        updated
     }
-    Log.d(TAG, "🔍 [REPO] resolveMissingDestinations() END, обновлено $updated контактов")
-    return updated
-}
-
-
 
     // =====================================================================
     // UPDATE
     // =====================================================================
 
-    suspend fun updateContact(id: Int, name: String, address: String) {
+    suspend fun updateContact(id: Int, name: String, address: String) = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] updateContact() START: id=$id, name=$name, address=$address")
         val normalized = normalizeAddress(address)
         db.contactDao().updateContact(id, name.trim(), normalized)
         db.contactDao().updatePublicKey(normalized, "")
+        // Инвалидируем кеш для старого и нового адреса
+        destinationCache.remove(normalized)
         Log.d(TAG, "🔍 [REPO] ✅ updateContact() завершён")
     }
 
-    suspend fun updatePublicKey(address: String, publicKey: String) {
+    suspend fun updatePublicKey(address: String, publicKey: String) = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] updatePublicKey() START: address=$address")
         val normalized = normalizeAddress(address)
         if (publicKey.isBlank()) {
             Log.w(TAG, "🔍 [REPO]   publicKey пустой!")
-            return
+            return@withContext
         }
         val updated = db.contactDao().updatePublicKey(normalized, publicKey)
         Log.d(TAG, "🔍 [REPO]   updatePublicKey вернул $updated строк")
         Log.d(TAG, "✅ [REPO] updatePublicKey() OK: ${publicKey.take(32)}...")
+        // Инвалидируем кеш, так как ключ обновился
+        destinationCache.remove(normalized)
     }
 
     // =====================================================================
     // ONLINE STATUS
     // =====================================================================
 
-    suspend fun updateOnlineStatus(address: String, isOnline: Boolean, lastSeen: Long) {
+    suspend fun updateOnlineStatus(address: String, isOnline: Boolean, lastSeen: Long) = withContext(Dispatchers.IO) {
         val normalized = normalizeAddress(address)
         val updated = db.contactDao().updateOnlineStatus(normalized, isOnline, lastSeen)
         Log.d(TAG, "🔍 [REPO] updateOnlineStatus: address=$normalized, online=$isOnline, rows=$updated")
     }
 
-    suspend fun updateOnlineStatusByDestination(destinationBase64: String, isOnline: Boolean, lastSeen: Long): Boolean {
+    suspend fun updateOnlineStatusByDestination(destinationBase64: String, isOnline: Boolean, lastSeen: Long): Boolean = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] updateOnlineStatusByDestination() START: destination=${destinationBase64.take(32)}...")
         if (destinationBase64.isBlank()) {
             Log.w(TAG, "🔍 [REPO]   destination пустой")
-            return false
+            return@withContext false
         }
 
         val all = db.contactDao().getAllContactsSync()
@@ -2406,23 +2514,23 @@ class ContactRepository(
         val entity = all.firstOrNull { it.publicKeyBase64 == destinationBase64 }
         if (entity == null) {
             Log.w(TAG, "🔍 [REPO]   ❌ контакт не найден по destination")
-            return false
+            return@withContext false
         }
 
         Log.d(TAG, "🔍 [REPO]   найден контакт: address=${entity.address}")
         val updated = db.contactDao().updateOnlineStatus(entity.address, isOnline, lastSeen)
         Log.d(TAG, "🔍 [REPO]   updateOnlineStatus вернул $updated строк")
-        return updated > 0
+        return@withContext updated > 0
     }
 
     // =====================================================================
     // GET BY ADDRESS
     // =====================================================================
 
-    suspend fun getContactByAddress(address: String): Contact? {
+    suspend fun getContactByAddress(address: String): Contact? = withContext(Dispatchers.IO) {
         val normalized = normalizeAddress(address)
         Log.d(TAG, "🔍 [REPO] getContactByAddress: normalized=$normalized")
-        return db.contactDao().getContactByAddress(normalized)?.toContact()
+        db.contactDao().getContactByAddress(normalized)?.toContact()
     }
 
     fun getContactByAddressFlow(address: String): Flow<Contact?> {
@@ -2433,22 +2541,22 @@ class ContactRepository(
         }
     }
 
-    suspend fun findContactByDestinationSync(destinationBase64: String): Contact? {
+    suspend fun findContactByDestinationSync(destinationBase64: String): Contact? = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] findContactByDestinationSync: destination=${destinationBase64.take(32)}...")
         if (destinationBase64.isBlank()) {
             Log.w(TAG, "🔍 [REPO]   destination пустой")
-            return null
+            return@withContext null
         }
         val all = db.contactDao().getAllContactsSync()
         Log.d(TAG, "🔍 [REPO]   ищем среди ${all.size} контактов")
-        return all.firstOrNull { it.publicKeyBase64 == destinationBase64 }?.toContact()
+        all.firstOrNull { it.publicKeyBase64 == destinationBase64 }?.toContact()
     }
 
     // =====================================================================
     // DELETE
     // =====================================================================
 
-    suspend fun deleteContact(id: Int) {
+    suspend fun deleteContact(id: Int) = withContext(Dispatchers.IO) {
         Log.d(TAG, "🔍 [REPO] deleteContact: id=$id")
         db.contactDao().deleteContact(id)
         Log.d(TAG, "✅ [REPO] deleteContact завершён")
@@ -2458,10 +2566,10 @@ class ContactRepository(
     // EXISTS
     // =====================================================================
 
-    suspend fun isContactExists(address: String): Boolean {
+    suspend fun isContactExists(address: String): Boolean = withContext(Dispatchers.IO) {
         val normalized = normalizeAddress(address)
         Log.d(TAG, "🔍 [REPO] isContactExists: normalized=$normalized")
-        return db.contactDao().getContactByAddress(normalized) != null
+        db.contactDao().getContactByAddress(normalized) != null
     }
 }
 
@@ -2786,81 +2894,6 @@ interface ContactDao {
 }
 
 
-===== FILE: app/src/main/kotlin/ru/servertronix/i2pmessenger/Message.kt =====
-package ru.servertronix.i2pmessenger
-
-data class Message(
-    val id: String,
-    val text: String,
-    val timestamp: Long = System.currentTimeMillis(),
-    val isMine: Boolean,
-    val status: String = "SENT"
-)
-
-
-===== FILE: app/src/main/kotlin/ru/servertronix/i2pmessenger/MessageAdapter.kt =====
-package ru.servertronix.i2pmessenger
-
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.TextView
-import androidx.recyclerview.widget.RecyclerView
-import java.text.SimpleDateFormat
-import java.util.*
-
-class MessageAdapter(
-    private var messages: List<Message>
-) : RecyclerView.Adapter<MessageAdapter.MessageViewHolder>() {
-
-    override fun getItemViewType(position: Int): Int {
-        return if (messages[position].isMine) VIEW_TYPE_MINE else VIEW_TYPE_OTHER
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
-        val inflater = LayoutInflater.from(parent.context)
-        return when (viewType) {
-            VIEW_TYPE_MINE -> {
-                val view = inflater.inflate(R.layout.item_message_mine, parent, false)
-                MessageViewHolder(view)
-            }
-            else -> {
-                val view = inflater.inflate(R.layout.item_message_other, parent, false)
-                MessageViewHolder(view)
-            }
-        }
-    }
-
-    override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
-        val message = messages[position]
-        holder.bind(message)
-    }
-
-    override fun getItemCount(): Int = messages.size
-
-    fun updateMessages(newMessages: List<Message>) {
-        messages = newMessages
-        notifyDataSetChanged()
-    }
-
-    inner class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val tvText: TextView = itemView.findViewById(R.id.tvMessageText)
-        private val tvTime: TextView = itemView.findViewById(R.id.tvMessageTime)
-
-        fun bind(message: Message) {
-            tvText.text = message.text
-            val dateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-            tvTime.text = dateFormat.format(Date(message.timestamp))
-        }
-    }
-
-    companion object {
-        private const val VIEW_TYPE_MINE = 1
-        private const val VIEW_TYPE_OTHER = 2
-    }
-}
-
-
 ===== FILE: app/src/main/kotlin/ru/servertronix/i2pmessenger/i2p/PresenceTransport.kt =====
 package ru.servertronix.i2pmessenger.i2p
 
@@ -2944,13 +2977,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import ru.servertronix.i2pmessenger.I2PConnectionState
+import java.io.InputStream
+import java.io.OutputStream
+import java.net.Socket
+import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 
 class I2PManager(
-    private val context: Context
+    private val context: Context,
+    private val samHost: String = DEFAULT_SAM_HOST,
+    private val samPort: Int = DEFAULT_SAM_PORT
 ) {
 
     companion object {
@@ -2959,9 +2998,14 @@ class I2PManager(
         private const val PREF_PUBLIC = "public_destination"
         private const val PREF_PRIVATE = "private_destination"
         private const val MAX_MESSAGE_SIZE = SamConnection.MAX_MESSAGE_SIZE
-        private const val INITIAL_RECONNECT_DELAY_MS = 2_000L
-        private const val MAX_RECONNECT_DELAY_MS = 30_000L
-        private const val ACCEPT_FAILURE_THRESHOLD = 3
+        private const val INITIAL_RECONNECT_DELAY_MS = 5_000L
+        private const val MAX_RECONNECT_DELAY_MS = 60_000L
+
+        const val DEFAULT_SAM_HOST = SamConnection.DEFAULT_HOST
+        const val DEFAULT_SAM_PORT = SamConnection.DEFAULT_PORT
+
+        // BASE32 encoding
+        private const val BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567"
 
         @Volatile
         private var singleton: I2PManager? = null
@@ -2974,11 +3018,16 @@ class I2PManager(
 
         @Synchronized
         fun init(context: Context) {
+            init(context, DEFAULT_SAM_HOST, DEFAULT_SAM_PORT)
+        }
+
+        @Synchronized
+        fun init(context: Context, host: String, port: Int) {
             if (singleton != null) {
                 Log.d(TAG, "I2PManager already initialized")
                 return
             }
-            val manager = I2PManager(context.applicationContext)
+            val manager = I2PManager(context.applicationContext, host, port)
             singleton = manager
             manager.start()
         }
@@ -2995,6 +3044,42 @@ class I2PManager(
         fun getInstance(): I2PManager? = singleton
         fun getSamConnection(): SamConnection? = singleton?.getSamConnectionSafe()
         fun getSessionId(): String = singleton?.getSessionId() ?: ""
+
+        /** Конвертирует base64 (SAM format) в base32 адрес без суффикса .b32.i2p */
+        fun base64ToBase32(base64: String): String {
+            val clean = base64.trim()
+            var standardBase64 = clean
+                .replace('-', '+')
+                .replace('~', '/')
+            when (standardBase64.length % 4) {
+                2 -> standardBase64 += "=="
+                3 -> standardBase64 += "="
+                0 -> { /* ok */ }
+            }
+            val destination = Base64.decode(standardBase64, Base64.DEFAULT)
+            val digest = java.security.MessageDigest.getInstance("SHA-256").digest(destination)
+            return encodeBase32Internal(digest)
+        }
+
+        private fun encodeBase32Internal(bytes: ByteArray): String {
+            val result = StringBuilder()
+            var buffer = 0
+            var bitsLeft = 0
+            for (byte in bytes) {
+                buffer = (buffer shl 8) or (byte.toInt() and 0xFF)
+                bitsLeft += 8
+                while (bitsLeft >= 5) {
+                    val index = (buffer shr (bitsLeft - 5)) and 0x1F
+                    result.append(BASE32_ALPHABET[index])
+                    bitsLeft -= 5
+                }
+            }
+            if (bitsLeft > 0) {
+                val index = (buffer shl (5 - bitsLeft)) and 0x1F
+                result.append(BASE32_ALPHABET[index])
+            }
+            return result.toString()
+        }
 
         fun addMessageListener(listener: (String, String) -> Unit) {
             singleton?.addMessageListenerInternal(listener)
@@ -3025,20 +3110,25 @@ class I2PManager(
     internal val scope = CoroutineScope(Dispatchers.IO + managerJob)
 
     @Volatile
-    private var samConnection = SamConnection()
+    private var samConnection = SamConnection(samHost, samPort)
 
     private val connected = AtomicBoolean(false)
-    private val reconnectInProgress = AtomicBoolean(false)
     private val sessionCreated = AtomicBoolean(false)
     @Volatile private var sessionId: String = ""
 
+    @Volatile
+    private var controlGenerationAtSession = 0
+
+    /** true, пока идёт пересоздание сессии (establishSession). Защищает от параллельных requestReconnect. */
+    private val rebuilding = AtomicBoolean(false)
+
+    // FIX: постоянный ACCEPT-луп вместо одного сокета
     private val acceptLoopRunning = AtomicBoolean(false)
     private var acceptJob: Job? = null
     private var reconnectJob: Job? = null
 
     private val sessionMutex = Mutex()
     private val started = AtomicBoolean(false)
-    private val reconnectRequested = AtomicBoolean(false)
 
     @Volatile private var privateDestination: String? = null
     @Volatile private var publicDestination: String? = null
@@ -3098,46 +3188,6 @@ class I2PManager(
         requestConnection()
     }
 
-    private fun requestConnection() {
-        if (!scope.isActive || !started.get()) return
-
-        setState(I2PConnectionState.Connecting)
-
-        if (reconnectJob?.isActive == true) return
-
-        reconnectJob = scope.launch {
-            var delayMs = 0L
-
-            while (isActive && started.get()) {
-                if (delayMs > 0L) {
-                    delay(delayMs)
-                }
-
-                try {
-                    if (establishSession()) {
-                        // establishSession() is authoritative. Once the new
-                        // control socket + STREAM session + ACCEPT loop are
-                        // ready, keep them. Do not immediately tear them down
-                        // just because a previous failure requested reconnect.
-                        reconnectRequested.set(false)
-                        setState(I2PConnectionState.Connected)
-                        Log.d(TAG, "🟢 SAM/I2P session established")
-                        break
-                    }
-                } catch (t: Throwable) {
-                    if (t is kotlinx.coroutines.CancellationException) throw t
-                    Log.e(TAG, "Connection attempt failed", t)
-                }
-
-                setConnected(false)
-                setState(I2PConnectionState.Error("SAM/I2P connection lost"))
-                delayMs = if (delayMs == 0L) INITIAL_RECONNECT_DELAY_MS
-                           else minOf(MAX_RECONNECT_DELAY_MS, delayMs * 2)
-                Log.w(TAG, "🔄 reconnect in ${delayMs}ms")
-            }
-        }
-    }
-
     @Synchronized
     fun stop() {
         if (!started.compareAndSet(true, false)) {
@@ -3148,12 +3198,20 @@ class I2PManager(
 
         reconnectJob?.cancel()
         reconnectJob = null
-        reconnectRequested.set(false)
-
         acceptLoopRunning.set(false)
-        samConnection.closeActiveAcceptSocket()
         acceptJob?.cancel()
         acceptJob = null
+
+        if (sessionId.isNotEmpty()) {
+            scope.launch {
+                try {
+                    samConnection.removeSession(sessionId)
+                    Log.d(TAG, "✅ SESSION REMOVE отправлен для $sessionId")
+                } catch (t: Throwable) {
+                    Log.w(TAG, "SESSION REMOVE failed", t)
+                }
+            }
+        }
 
         sessionCreated.set(false)
         setConnected(false)
@@ -3177,7 +3235,46 @@ class I2PManager(
     }
 
     // =====================================================================
-    // CONNECTION / RECONNECT
+    // REQUEST CONNECTION
+    // =====================================================================
+
+    private fun requestConnection() {
+        if (!scope.isActive || !started.get()) return
+
+        setState(I2PConnectionState.Connecting)
+
+        if (reconnectJob?.isActive == true) return
+
+        reconnectJob = scope.launch {
+            var delayMs = 0L
+
+            while (isActive && started.get()) {
+                if (delayMs > 0L) {
+                    delay(delayMs)
+                }
+
+                try {
+                    if (establishSession()) {
+                        setState(I2PConnectionState.Connected)
+                        Log.d(TAG, "🟢 SAM/I2P session established")
+                        break
+                    }
+                } catch (t: Throwable) {
+                    if (t is kotlinx.coroutines.CancellationException) throw t
+                    Log.e(TAG, "Connection attempt failed", t)
+                }
+
+                setConnected(false)
+                setState(I2PConnectionState.Error("SAM/I2P connection lost"))
+                delayMs = if (delayMs == 0L) INITIAL_RECONNECT_DELAY_MS
+                           else minOf(MAX_RECONNECT_DELAY_MS, delayMs * 2)
+                Log.w(TAG, "🔄 reconnect in ${delayMs}ms")
+            }
+        }
+    }
+
+    // =====================================================================
+    // ESTABLISH SESSION
     // =====================================================================
 
     private suspend fun establishSession(): Boolean {
@@ -3186,14 +3283,23 @@ class I2PManager(
             if (connected.get() && sessionCreated.get()) return@withLock true
 
             acceptLoopRunning.set(false)
-            samConnection.closeActiveAcceptSocket()
             acceptJob?.cancel()
             acceptJob = null
 
             val oldSam = samConnection
+
+            if (sessionId.isNotEmpty()) {
+                try {
+                    oldSam.removeSession(sessionId)
+                    Log.d(TAG, "Removed old session $sessionId")
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to remove old session", t)
+                }
+            }
+
             try { oldSam.disconnect() } catch (_: Throwable) {}
 
-            val newSam = SamConnection()
+            val newSam = SamConnection(samHost, samPort)
             samConnection = newSam
             sessionCreated.set(false)
             sessionId = ""
@@ -3211,13 +3317,18 @@ class I2PManager(
                 val privateKey = privateDestination ?: return@withLock false
 
                 if (!newSam.createStreamSession(newId, privateKey)) {
+                    Log.e(TAG, "❌ SESSION CREATE failed")
                     return@withLock false
                 }
 
                 sessionId = newId
+                controlGenerationAtSession = newSam.getControlGeneration()
                 sessionCreated.set(true)
                 setConnected(true)
+
+                // Запускаем ACCEPT луп для приёма входящих
                 startAcceptLoop()
+
                 true
             } catch (t: Throwable) {
                 if (t is kotlinx.coroutines.CancellationException) throw t
@@ -3227,6 +3338,7 @@ class I2PManager(
                 if (!sessionCreated.get()) {
                     try { newSam.disconnect() } catch (_: Throwable) {}
                 }
+                rebuilding.set(false) // сбрасываем флаг реконнекта
             }
         }
     }
@@ -3234,8 +3346,27 @@ class I2PManager(
     private fun requestReconnect(reason: String) {
         if (!started.get() || !scope.isActive) return
 
+        // Только один реконнект одновременно
+        if (!rebuilding.compareAndSet(false, true)) {
+            Log.d(TAG, "🔄 reconnect уже в процессе, пропускаем: $reason")
+            return
+        }
+
         Log.w(TAG, "🔄 reconnect requested: $reason")
-        reconnectRequested.set(true)
+
+        // СНАЧАЛА синхронно останавливаем acceptLoop, чтобы он не мешал
+        acceptLoopRunning.set(false)
+        acceptJob?.cancel()
+        acceptJob = null
+        samConnection.closeActiveAcceptSocket()
+
+        scope.launch {
+            try {
+                samConnection.disconnect()
+            } catch (t: Throwable) {
+                Log.w(TAG, "disconnect during reconnect failed", t)
+            }
+        }
         connected.set(false)
         sessionCreated.set(false)
         setState(I2PConnectionState.Connecting)
@@ -3272,70 +3403,7 @@ class I2PManager(
     }
 
     // =====================================================================
-    // CREATE SESSION
-    // =====================================================================
-
-    private suspend fun createFullSession(): Boolean {
-        Log.d(TAG, "🔍 [IM] ===== createFullSession() START =====")
-
-        if (connected.get() && sessionCreated.get()) {
-            Log.d(TAG, "🔍 [IM] Already created")
-            return true
-        }
-
-        sessionMutex.withLock {
-            Log.d(TAG, "🔍 [IM] Starting full session creation...")
-
-            val sam = samConnection
-
-            Log.d(TAG, "🔍 [IM] [STEP1] Connecting to SAM...")
-            if (!sam.connect()) {
-                Log.e(TAG, "🔍 [IM] ❌ SAM connect failed")
-                return false
-            }
-            Log.d(TAG, "🔍 [IM] [STEP1] ✅ connected")
-
-            Log.d(TAG, "🔍 [IM] [STEP2] HELLO...")
-            val helloResponse = sam.hello()
-            if (!isOk(helloResponse)) {
-                Log.e(TAG, "🔍 [IM] ❌ HELLO failed")
-                return false
-            }
-            Log.d(TAG, "🔍 [IM] [STEP2] ✅ HELLO OK")
-
-            Log.d(TAG, "🔍 [IM] [STEP3] Ensuring destination...")
-            if (!ensureDestinationWithSam(sam)) {
-                Log.e(TAG, "🔍 [IM] ❌ Destination failed")
-                return false
-            }
-            Log.d(TAG, "🔍 [IM] [STEP3] ✅ destination OK")
-
-            sessionId = newSessionId()
-            Log.d(TAG, "🔍 [IM] [STEP4] Creating STREAM session: $sessionId")
-
-            val sessionOk = sam.createStreamSession(
-                sessionId,
-                privateDestination ?: return false
-            )
-
-            if (!sessionOk) {
-                Log.e(TAG, "🔍 [IM] ❌ SESSION CREATE failed")
-                return false
-            }
-
-            Log.d(TAG, "🔍 [IM] [STEP4] ✅ SESSION CREATE OK")
-
-            sessionCreated.set(true)
-            setConnected(true)
-            startAcceptLoop()
-
-            Log.d(TAG, "🔍 [IM] ✅ Full session created")
-            return true
-        }
-    }
-
-    // =====================================================================
-    // DESTINATION (ОБЩИЙ)
+    // DESTINATION
     // =====================================================================
 
     private fun loadSavedDestination(): Boolean {
@@ -3379,7 +3447,7 @@ class I2PManager(
     fun restoreIdentity(): Boolean = loadSavedDestination()
 
     // =====================================================================
-    // ACCEPT LOOP
+    // ACCEPT LOOP (используем старый проверенный подход)
     // =====================================================================
 
     @Synchronized
@@ -3400,6 +3468,9 @@ class I2PManager(
 
     private suspend fun acceptLoop() {
         var failures = 0
+        val ACCEPT_FAILURE_THRESHOLD = 5
+        var lastHealthCheck = 0L
+        val HEALTH_CHECK_INTERVAL_MS = 30_000L
 
         while (scope.isActive && acceptLoopRunning.get()) {
             if (!connected.get() || !sessionCreated.get()) {
@@ -3407,44 +3478,71 @@ class I2PManager(
                 continue
             }
 
-            var accepted: SamConnection.AcceptedStream? = null
+            // Проактивная проверка: SAM-мост жив? (независимый сокет, не трогает control)
+            val now = System.currentTimeMillis()
+            if (now - lastHealthCheck >= HEALTH_CHECK_INTERVAL_MS) {
+                lastHealthCheck = now
+                if (!samConnection.checkSamAvailable()) {
+                    Log.w(TAG, "🔍 [IM] SAM bridge unavailable (health check failed), requesting reconnect")
+                    requestReconnect("SAM bridge health check failed")
+                    break
+                }
+            }
+
             val sam = samConnection
 
             try {
-                accepted = sam.acceptStream(sessionId)
+                when (val result = sam.acceptStream(sessionId)) {
+                    is SamConnection.AcceptResult.Accepted -> {
+                        failures = 0
+                        try {
+                            handleAcceptedStream(result.stream)
+                        } finally {
+                            result.stream.close()
+                        }
+                    }
 
-                if (accepted == null) {
-                    failures++
+                    SamConnection.AcceptResult.IdleTimeout -> {
+                        // Idle timeout — это нормально (нет входящих соединений),
+                        // НЕ инкрементим failures. failures считаем только для реальных ошибок.
+                        if (!sam.isControlConnectionAlive() ||
+                            sam.getControlGeneration() != controlGenerationAtSession) {
+                            requestReconnect("SAM control connection lost during ACCEPT")
+                            break
+                        }
+                        delay(1_000L) // небольшая пауза перед следующим ACCEPT
+                    }
 
-                    // A STREAM ACCEPT socket can legitimately time out while
-                    // waiting for an incoming peer. That does NOT mean the
-                    // SAM session is dead. Never send "SESSION STATUS ID=..."
-                    // here: SESSION STATUS is a server response, not a SAM
-                    // 3.1 client command.
-                    if (!sam.isControlConnectionAlive()) {
-                        requestReconnect("SAM control connection lost during ACCEPT")
+                    is SamConnection.AcceptResult.Rejected -> {
+                        Log.w(TAG, "🔍 [IM] STREAM ACCEPT rejected: ${result.samResult}")
+                        requestReconnect("STREAM ACCEPT rejected: ${result.samResult}")
                         break
                     }
 
-                    delay(minOf(5_000L, 500L * failures))
-                    continue
+                    is SamConnection.AcceptResult.Failed -> {
+                        failures++
+                        Log.e(TAG, "🔍 [IM] acceptStream ошибка: ${result.message}")
+                        if (!sam.isControlConnectionAlive() ||
+                            sam.getControlGeneration() != controlGenerationAtSession ||
+                            failures >= ACCEPT_FAILURE_THRESHOLD) {
+                            requestReconnect("ACCEPT loop failure: ${result.message}")
+                            break
+                        }
+                        delay(minOf(5_000L, 500L * failures))
+                    }
                 }
-
-                failures = 0
-                handleAcceptedStream(accepted)
-
             } catch (e: Exception) {
                 if (scope.isActive && acceptLoopRunning.get()) {
                     failures++
                     Log.e(TAG, "🔍 [IM] acceptStream ошибка: ${e.message}")
-                    if (!sam.isControlConnectionAlive() || failures >= ACCEPT_FAILURE_THRESHOLD) {
+                    if (!sam.isControlConnectionAlive() ||
+                        sam.getControlGeneration() != controlGenerationAtSession ||
+                        failures >= ACCEPT_FAILURE_THRESHOLD) {
                         requestReconnect("ACCEPT loop failure: ${e.message}")
                         break
                     }
                     delay(minOf(5_000L, 500L * failures))
                 }
-            } finally {
-                accepted?.close()
             }
         }
 
@@ -3499,7 +3597,7 @@ class I2PManager(
     }
 
     // =====================================================================
-    // SEND MESSAGE
+    // SEND MESSAGE (упрощённая версия с переиспользованием сокета)
     // =====================================================================
 
     suspend fun sendMessage(destination: String, message: String): Boolean {
@@ -3527,10 +3625,18 @@ class I2PManager(
             return false
         }
 
+        // Проверяем поколение control-сокета ПЕРЕД отправкой — если изменилось,
+        // значит control-сокет был пересоздан, а sessionId уже невалиден
+        val sam = samConnection
+        if (sam.getControlGeneration() != controlGenerationAtSession) {
+            Log.w(TAG, "🔍 [IM] control generation changed (${sam.getControlGeneration()} != $controlGenerationAtSession), requesting reconnect")
+            requestReconnect("control generation changed before send")
+            return false
+        }
+
         Log.d(TAG, "🔍 [IM] отправка на ${resolved.take(32)}...")
 
-        val sam = samConnection
-        val result = sam.sendStreamMessage(
+        val sendResult = sam.sendStreamMessage(
             sessionId,
             resolved,
             message
@@ -3538,16 +3644,34 @@ class I2PManager(
             Log.d(TAG, "🔍 [IM] callback: $log")
         }
 
-        if (!result) {
-            // STREAM CONNECT failure belongs to this short-lived stream
-            // socket. It is not proof that the long-lived SAM session died.
-            // The accept loop is the component that observes a real session/
-            // control-socket failure and requests a full rebuild.
-            Log.w(TAG, "🔍 [IM] outbound STREAM failed; keeping SAM session alive")
+        val ok = when (sendResult) {
+            SamConnection.StreamSendResult.SENT -> true
+
+            SamConnection.StreamSendResult.SESSION_INVALID -> {
+                Log.w(TAG, "🔍 [IM] STREAM session is dead (INVALID_ID); requesting reconnect")
+                requestReconnect("STREAM session invalid during send")
+                false
+            }
+
+            SamConnection.StreamSendResult.PEER_UNREACHABLE -> {
+                Log.w(TAG, "🔍 [IM] peer unreachable; keeping SAM session alive")
+                false
+            }
+
+            SamConnection.StreamSendResult.FAILED -> {
+                // Не шлём SESSION STATUS на control-сокет — это ломает соединение.
+                // Если control-сокет мёртв или поколение изменилось — реконнект.
+                if (!sam.isControlConnectionAlive() || sam.getControlGeneration() != controlGenerationAtSession) {
+                    requestReconnect("send failed and SAM control connection unusable")
+                } else {
+                    Log.w(TAG, "🔍 [IM] outbound STREAM failed; keeping SAM session alive")
+                }
+                false
+            }
         }
 
-        Log.d(TAG, "🔍 [IM] sendMessage вернул $result")
-        return result
+        Log.d(TAG, "🔍 [IM] sendMessage вернул $ok")
+        return ok
     }
 
     // =====================================================================
@@ -3614,37 +3738,11 @@ class I2PManager(
             }
             val destinationBytes = Base64.decode(padded, Base64.DEFAULT)
             val digest = java.security.MessageDigest.getInstance("SHA-256").digest(destinationBytes)
-            encodeBase32(digest)
+            encodeBase32Internal(digest)
         } catch (e: Exception) {
             Log.e(TAG, "🔍 [IM] Base32 error", e)
             ""
         }
-    }
-
-    private fun encodeBase32(bytes: ByteArray): String {
-        val alphabet = "abcdefghijklmnopqrstuvwxyz234567"
-        val result = StringBuilder()
-
-        var buffer = 0
-        var bitsLeft = 0
-
-        for (byte in bytes) {
-            buffer = (buffer shl 8) or (byte.toInt() and 0xff)
-            bitsLeft += 8
-
-            while (bitsLeft >= 5) {
-                val index = (buffer shr (bitsLeft - 5)) and 0x1f
-                result.append(alphabet[index])
-                bitsLeft -= 5
-            }
-        }
-
-        if (bitsLeft > 0) {
-            val index = (buffer shl (5 - bitsLeft)) and 0x1f
-            result.append(alphabet[index])
-        }
-
-        return result.toString()
     }
 
     // =====================================================================
@@ -3695,10 +3793,11 @@ class SamConnection(
         private const val SAM_VERSION = "3.1"
 
         private const val CONNECT_TIMEOUT_MS = 5_000
-        private const val COMMAND_READ_TIMEOUT_MS = 120_000
+        private const val COMMAND_READ_TIMEOUT_MS = 180_000
 
         private const val STREAM_CONNECT_TIMEOUT_MS = 90_000
-        private const val STREAM_ACCEPT_TIMEOUT_MS = 300_000
+        // FIX: снижен с 5 минут до 1 минуты для быстрого обнаружения мёртвого control-сокета
+        private const val STREAM_ACCEPT_TIMEOUT_MS = 60_000
         private const val STREAM_READ_TIMEOUT_MS = 60_000
 
         private const val HEALTH_TIMEOUT_MS = 3_000
@@ -3711,8 +3810,13 @@ class SamConnection(
     // CONTROL CONNECTION
     // =====================================================================
 
+    @Volatile
     private var controlSocket: Socket? = null
+
+    @Volatile
     private var controlInput: InputStream? = null
+
+    @Volatile
     private var controlOutput: OutputStream? = null
 
     @Volatile
@@ -3721,10 +3825,9 @@ class SamConnection(
     @Volatile
     private var helloResponse: String? = null
 
-    /**
-     * Все команды через один control socket должны выполняться
-     * последовательно.
-     */
+    @Volatile
+    private var controlGeneration = 0
+
     private val commandMutex = Mutex()
 
     // =====================================================================
@@ -3758,6 +3861,37 @@ class SamConnection(
         }
     }
 
+    enum class StreamConnectError {
+        SESSION_INVALID,
+        PEER_UNREACHABLE,
+        TIMEOUT,
+        REFUSED,
+        ROUTER_ERROR,
+        TRANSPORT
+    }
+
+    sealed class StreamConnectResult {
+        class Success(val socket: Socket) : StreamConnectResult()
+        class Failure(
+            val error: StreamConnectError,
+            val detail: String?
+        ) : StreamConnectResult()
+    }
+
+    enum class StreamSendResult {
+        SENT,
+        SESSION_INVALID,
+        PEER_UNREACHABLE,
+        FAILED
+    }
+
+    sealed class AcceptResult {
+        class Accepted(val stream: AcceptedStream) : AcceptResult()
+        object IdleTimeout : AcceptResult()
+        class Rejected(val samResult: String) : AcceptResult()
+        class Failed(val message: String?) : AcceptResult()
+    }
+
     // =====================================================================
     // CONTROL CONNECTION
     // =====================================================================
@@ -3770,9 +3904,6 @@ class SamConnection(
         }
     }
 
-    /**
-     * Вызывается только когда commandMutex уже удерживается.
-     */
     private fun connectInternal(): Boolean {
         Log.d(TAG, "🔍 [SC] connectInternal() START")
 
@@ -3798,6 +3929,8 @@ class SamConnection(
             controlSocket = socket
             controlInput = socket.getInputStream()
             controlOutput = socket.getOutputStream()
+
+            controlGeneration++
 
             helloCompleted = false
             helloResponse = null
@@ -3851,13 +3984,14 @@ class SamConnection(
         }
     }
 
+    // =====================================================================
+    // DISCONNECT
+    // =====================================================================
+
     suspend fun disconnect() {
         Log.d(TAG, "🔍 [SC] disconnect() called")
         closeActiveAcceptSocket()
-
-        commandMutex.withLock {
-            disconnectControl()
-        }
+        disconnectControl()
     }
 
     private fun disconnectControl() {
@@ -3902,7 +4036,7 @@ class SamConnection(
     }
 
     // =====================================================================
-    // SEND SAM COMMAND (ПОКАЗЫВАЕТ ВСЕ ДАННЫЕ)
+    // SEND SAM COMMAND
     // =====================================================================
 
     private suspend fun sendCommandInternal(
@@ -3968,8 +4102,22 @@ class SamConnection(
         }
     }
 
-    /** Returns true only while the SAM control socket is usable. */
-    fun isControlConnectionAlive(): Boolean = isControlConnected()
+    fun isControlConnectionAlive(): Boolean {
+        val socket = controlSocket ?: return false
+
+        return try {
+            if (!isControlConnected()) {
+                false
+            } else {
+                socket.sendUrgentData(0)
+                true
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun getControlGeneration(): Int = controlGeneration
 
     suspend fun sendCommand(
         command: String
@@ -3990,7 +4138,7 @@ class SamConnection(
     }
 
     // =====================================================================
-    // NAMING LOOKUP (ПОКАЗЫВАЕТ ВСЕ ДАННЫЕ)
+    // NAMING LOOKUP
     // =====================================================================
 
     suspend fun lookupDestination(
@@ -4107,7 +4255,8 @@ class SamConnection(
                 return@withLock false
             }
 
-            val command = "SESSION CREATE STYLE=STREAM ID=$sessionId DESTINATION=$privateDestination"
+            val command = "SESSION CREATE STYLE=STREAM ID=$sessionId DESTINATION=$privateDestination " +
+                    "i2cp.leaseSetEncType=4 inbound.quantity=3 outbound.quantity=3"
             Log.d(TAG, "🔍 [SC] [CTRL-05] команда (полная): $command")
             val bytes = command.toByteArray(StandardCharsets.UTF_8)
             Log.d(TAG, "🔍 [SC] [CTRL-05] command length=${bytes.size} bytes")
@@ -4126,7 +4275,7 @@ class SamConnection(
     }
 
     // =====================================================================
-    // SESSION REMOVE
+    // SESSION REMOVE (добавлен вызов в I2PManager)
     // =====================================================================
 
     suspend fun removeSession(
@@ -4143,7 +4292,7 @@ class SamConnection(
         return commandMutex.withLock {
 
             if (!isControlConnected()) {
-                Log.w(TAG, "🔍 [SC] not connected")
+                Log.w(TAG, "🔍 [SC] not connected, cannot remove session")
                 return@withLock false
             }
 
@@ -4164,86 +4313,76 @@ class SamConnection(
     }
 
     // =====================================================================
-    // STREAM CONNECT (ПОКАЗЫВАЕТ ВСЕ ДАННЫЕ)
+    // STREAM CONNECT
     // =====================================================================
 
-  suspend fun createStreamSocket(sessionId: String, destination: String): Socket? {
-    if (sessionId.isBlank() || destination.isBlank()) {
-        Log.e(TAG, "[STREAM-CONNECT] empty params")
-        return null
-    }
-
-    val socket = Socket()
-
-    return try {
-        Log.d(TAG, "[STREAM-CONNECT] connecting...")
-        socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
-        socket.soTimeout = STREAM_CONNECT_TIMEOUT_MS
-
-        val output = socket.getOutputStream()
-        val input = socket.getInputStream()
-
-        // -------------------------------------------------------------
-        // HELLO
-        // -------------------------------------------------------------
-
-        Log.d(TAG, "[STREAM-CONNECT] HELLO =>")
-        writeSamLine(output, "HELLO VERSION MIN=$SAM_VERSION MAX=$SAM_VERSION")
-
-        val helloResponse = readSamLine(input, MAX_SAM_LINE_SIZE)
-        Log.d(TAG, "[STREAM-CONNECT] HELLO <= $helloResponse")
-
-        if (!isOk(helloResponse)) {
-            Log.e(TAG, "[STREAM-CONNECT] HELLO failed")
-            closeQuietly(socket)
-            return null
+    suspend fun createStreamSocket(
+        sessionId: String,
+        destination: String
+    ): StreamConnectResult {
+        if (sessionId.isBlank() || destination.isBlank()) {
+            Log.e(TAG, "[STREAM-CONNECT] empty params")
+            return StreamConnectResult.Failure(StreamConnectError.TRANSPORT, "empty params")
         }
 
-        // -------------------------------------------------------------
-        // STREAM CONNECT
-        // -------------------------------------------------------------
-        // IMPORTANT: do NOT send SESSION STATUS on this socket.
-        //
-        // A STREAM CONNECT socket is a separate SAM protocol connection.
-        // The STREAM session itself was created on the long-lived control
-        // connection.  We only need to pass its ID to STREAM CONNECT here.
-        // Session liveness, when needed, is checked through the dedicated
-        // control socket by isStreamSessionAlive().
-        // Sending SESSION STATUS here was causing SAM to close this socket
-        // and was incorrectly interpreted as "session is gone", which then
-        // triggered a full reconnect and destroyed the real session.
-        // -------------------------------------------------------------
+        val socket = Socket()
 
-        val command = "STREAM CONNECT ID=$sessionId DESTINATION=$destination SILENT=false"
-        Log.d(TAG, "[STREAM-CONNECT] => $command")
-        writeSamLine(output, command)
+        return try {
+            Log.d(TAG, "[STREAM-CONNECT] connecting...")
+            socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
+            socket.soTimeout = STREAM_CONNECT_TIMEOUT_MS
 
-        val connectResponse = readSamLine(input, MAX_SAM_LINE_SIZE)
-        Log.d(TAG, "[STREAM-CONNECT] <= $connectResponse")
+            val output = socket.getOutputStream()
+            val input = socket.getInputStream()
 
-        if (!isOk(connectResponse)) {
-            Log.e(TAG, "[STREAM-CONNECT] STREAM CONNECT failed: $connectResponse")
+            // -------------------------------------------------------------
+            // HELLO
+            // -------------------------------------------------------------
+
+            Log.d(TAG, "[STREAM-CONNECT] HELLO =>")
+            writeSamLine(output, "HELLO VERSION MIN=$SAM_VERSION MAX=$SAM_VERSION")
+
+            val helloResponse = readSamLine(input, MAX_SAM_LINE_SIZE)
+            Log.d(TAG, "[STREAM-CONNECT] HELLO <= $helloResponse")
+
+            if (!isOk(helloResponse)) {
+                Log.e(TAG, "[STREAM-CONNECT] HELLO failed")
+                closeQuietly(socket)
+                return StreamConnectResult.Failure(StreamConnectError.TRANSPORT, "HELLO failed")
+            }
+
+            val command = "STREAM CONNECT ID=$sessionId DESTINATION=$destination SILENT=false"
+            Log.d(TAG, "[STREAM-CONNECT] => $command")
+            writeSamLine(output, command)
+
+            val connectResponse = readSamLine(input, MAX_SAM_LINE_SIZE)
+            Log.d(TAG, "[STREAM-CONNECT] <= $connectResponse")
+
+            if (!isOk(connectResponse)) {
+                val result = extractResultCode(connectResponse)
+                val error = toStreamConnectError(result)
+                Log.e(TAG, "[STREAM-CONNECT] STREAM CONNECT failed: $connectResponse (error=$error)")
+                closeQuietly(socket)
+                return StreamConnectResult.Failure(error, connectResponse)
+            }
+
+            socket.soTimeout = STREAM_READ_TIMEOUT_MS
+            Log.d(TAG, "[STREAM-CONNECT] ✅ established")
+            StreamConnectResult.Success(socket)
+
+        } catch (e: SocketTimeoutException) {
+            Log.e(TAG, "[STREAM-CONNECT] timeout: ${e.message}")
             closeQuietly(socket)
-            return null
+            StreamConnectResult.Failure(StreamConnectError.TIMEOUT, e.message)
+        } catch (e: Exception) {
+            Log.e(TAG, "[STREAM-CONNECT] error: ${e.message}", e)
+            closeQuietly(socket)
+            StreamConnectResult.Failure(StreamConnectError.TRANSPORT, e.message)
         }
-
-        socket.soTimeout = STREAM_READ_TIMEOUT_MS
-        Log.d(TAG, "[STREAM-CONNECT] ✅ established")
-        socket
-
-    } catch (e: SocketTimeoutException) {
-        Log.e(TAG, "[STREAM-CONNECT] timeout: ${e.message}")
-        closeQuietly(socket)
-        null
-    } catch (e: Exception) {
-        Log.e(TAG, "[STREAM-CONNECT] error: ${e.message}", e)
-        closeQuietly(socket)
-        null
     }
-}
 
     // =====================================================================
-    // STREAM SEND (ПОКАЗЫВАЕТ ВСЕ ДАННЫЕ)
+    // STREAM SEND
     // =====================================================================
 
     suspend fun sendStreamMessage(
@@ -4251,7 +4390,7 @@ class SamConnection(
         destination: String,
         message: String,
         logCallback: (String) -> Unit = {}
-    ): Boolean {
+    ): StreamSendResult {
 
         Log.d(TAG, "🔍 [SC] ===== sendStreamMessage() START =====")
         Log.d(TAG, "🔍 [SC] sessionId: $sessionId")
@@ -4265,7 +4404,7 @@ class SamConnection(
         if (sessionId.isBlank() || destination.isBlank() || payload.isEmpty() || payload.size > MAX_MESSAGE_SIZE) {
             Log.w(TAG, "🔍 [SC] ❌ invalid params")
             logCallback("invalid params")
-            return false
+            return StreamSendResult.FAILED
         }
 
         var socket: Socket? = null
@@ -4273,25 +4412,28 @@ class SamConnection(
         return try {
             logCallback("STREAM CONNECT...")
             Log.d(TAG, "🔍 [SC] вызываем createStreamSocket...")
-            socket = createStreamSocket(sessionId, destination)
-            Log.d(TAG, "🔍 [SC] createStreamSocket вернул ${if (socket != null) "Socket" else "null"}")
 
-            if (socket == null) {
-                logCallback("failed to connect")
-                Log.w(TAG, "🔍 [SC] ❌ socket is null")
-                return false
+            when (val result = createStreamSocket(sessionId, destination)) {
+                is StreamConnectResult.Success -> {
+                    socket = result.socket
+                    Log.d(TAG, "🔍 [SC] отправляем payload (${payload.size} bytes)...")
+                    writeFrame(result.socket.getOutputStream(), payload)
+                    logCallback("✅ sent")
+                    Log.d(TAG, "🔍 [SC] ✅ отправлено успешно")
+                    StreamSendResult.SENT
+                }
+
+                is StreamConnectResult.Failure -> {
+                    logCallback("failed to connect: ${result.error}")
+                    Log.w(TAG, "🔍 [SC] ❌ STREAM CONNECT failed: ${result.error} (${result.detail})")
+                    toStreamSendResult(result.error)
+                }
             }
-
-            Log.d(TAG, "🔍 [SC] отправляем payload (${payload.size} bytes)...")
-            writeFrame(socket.getOutputStream(), payload)
-            logCallback("✅ sent")
-            Log.d(TAG, "🔍 [SC] ✅ отправлено успешно")
-            true
 
         } catch (e: Exception) {
             logCallback("send error: ${e.message}")
             Log.e(TAG, "🔍 [SC] ❌ sendStreamMessage ошибка", e)
-            false
+            StreamSendResult.FAILED
         } finally {
             closeQuietly(socket)
             Log.d(TAG, "🔍 [SC] ===== sendStreamMessage() FINISH =====")
@@ -4299,18 +4441,18 @@ class SamConnection(
     }
 
     // =====================================================================
-    // STREAM ACCEPT (ПОКАЗЫВАЕТ ВСЕ ДАННЫЕ)
+    // STREAM ACCEPT
     // =====================================================================
 
     suspend fun acceptStream(
         sessionId: String
-    ): AcceptedStream? {
+    ): AcceptResult {
 
         Log.d(TAG, "🔍 [SC] acceptStream() START: sessionId=$sessionId")
 
         if (sessionId.isBlank()) {
             Log.w(TAG, "🔍 [SC] sessionId пустой")
-            return null
+            return AcceptResult.Failed("empty sessionId")
         }
 
         val socket = Socket()
@@ -4342,7 +4484,7 @@ class SamConnection(
 
             if (!isOk(helloResponse)) {
                 Log.e(TAG, "🔍 [SC] [STREAM-ACCEPT] ❌ HELLO failed: $helloResponse")
-                return null
+                return AcceptResult.Failed("HELLO failed")
             }
 
             // -------------------------------------------------------------
@@ -4357,8 +4499,9 @@ class SamConnection(
             Log.d(TAG, "🔍 [SC] [STREAM-ACCEPT] <= $acceptResponse")
 
             if (!isOk(acceptResponse)) {
+                val result = extractResultCode(acceptResponse)
                 Log.e(TAG, "🔍 [SC] [STREAM-ACCEPT] ❌ ACCEPT failed: $acceptResponse")
-                return null
+                return AcceptResult.Rejected(result ?: acceptResponse ?: "UNKNOWN")
             }
 
             // -------------------------------------------------------------
@@ -4371,32 +4514,32 @@ class SamConnection(
 
             if (sender == null || sender.isBlank() || sender.startsWith("STREAM STATUS ")) {
                 Log.e(TAG, "🔍 [SC] [STREAM-ACCEPT] ❌ invalid sender: $sender")
-                return null
+                return AcceptResult.Failed("invalid sender")
             }
 
             socket.soTimeout = STREAM_READ_TIMEOUT_MS
             handedOff = true
 
             Log.d(TAG, "🔍 [SC] [STREAM-ACCEPT] ✅ accepted from ${sender.take(48)}...")
-            AcceptedStream(
-                senderDestination = sender.trim(),
-                input = input,
-                socket = socket
+            AcceptResult.Accepted(
+                AcceptedStream(
+                    senderDestination = sender.trim(),
+                    input = input,
+                    socket = socket
+                )
             )
 
         } catch (e: SocketTimeoutException) {
-            // No incoming stream during the accept wait is normal. This is NOT
-            // evidence that the SAM control connection or session is dead.
             Log.d(TAG, "🔍 [SC] [STREAM-ACCEPT] idle timeout; reopening ACCEPT")
-            null
+            AcceptResult.IdleTimeout
         } catch (e: SocketException) {
             if (!socket.isClosed) {
                 Log.e(TAG, "🔍 [SC] [STREAM-ACCEPT] SocketException: ${e.message}", e)
             }
-            null
+            AcceptResult.Failed(e.message)
         } catch (e: Exception) {
             Log.e(TAG, "🔍 [SC] [STREAM-ACCEPT] error: ${e.message}", e)
-            null
+            AcceptResult.Failed(e.message)
         } finally {
 
             synchronized(acceptSocketLock) {
@@ -4593,17 +4736,23 @@ class SamConnection(
         address: String
     ): String {
 
-        var value = address.trim()
+        val value = address.trim()
 
         if (value.isEmpty()) {
             return ""
         }
 
-        if (!value.contains('.')) {
-            value += ".b32.i2p"
+        if (value.contains('=') || value.contains('~') || value.length >= 100) {
+            return value
         }
 
-        return value.lowercase()
+        var name = value
+
+        if (!name.contains('.')) {
+            name += ".b32.i2p"
+        }
+
+        return name.lowercase()
     }
 
     private fun isOk(
@@ -4643,6 +4792,32 @@ class SamConnection(
             response.substring(valueStart, valueEnd)
         } else {
             response.substring(valueStart)
+        }
+    }
+
+    private fun extractResultCode(response: String?): String? {
+        return extractSamValue(response, "RESULT")
+    }
+
+    private fun toStreamConnectError(samResult: String?): StreamConnectError {
+        return when (samResult?.uppercase()) {
+            "INVALID_ID" -> StreamConnectError.SESSION_INVALID
+            "CANT_REACH_PEER" -> StreamConnectError.PEER_UNREACHABLE
+            "TIMEOUT" -> StreamConnectError.TIMEOUT
+            "REFUSED" -> StreamConnectError.REFUSED
+            "I2P_ERROR" -> StreamConnectError.ROUTER_ERROR
+            else -> StreamConnectError.ROUTER_ERROR
+        }
+    }
+
+    private fun toStreamSendResult(error: StreamConnectError): StreamSendResult {
+        return when (error) {
+            StreamConnectError.SESSION_INVALID -> StreamSendResult.SESSION_INVALID
+            StreamConnectError.PEER_UNREACHABLE,
+            StreamConnectError.TIMEOUT,
+            StreamConnectError.REFUSED -> StreamSendResult.PEER_UNREACHABLE
+            StreamConnectError.ROUTER_ERROR,
+            StreamConnectError.TRANSPORT -> StreamSendResult.FAILED
         }
     }
 
@@ -6117,7 +6292,7 @@ include(":app")
 
 ===== FILE: gradle.properties =====
 #AndroidCS: enforce UTF-8 & locale for Gradle daemon
-#Sat Aug 15 02:28:42 GMT 2026
+#Tue Aug 18 14:57:01 GMT 2026
 android.nonTransitiveRClass=true
 org.gradle.daemon.idletimeout=10800000
 kotlin.code.style=official

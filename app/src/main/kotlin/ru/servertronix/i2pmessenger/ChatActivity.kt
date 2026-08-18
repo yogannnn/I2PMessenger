@@ -19,7 +19,6 @@ import ru.servertronix.i2pmessenger.data.local.AppDatabase
 import ru.servertronix.i2pmessenger.data.repository.ContactRepository
 import ru.servertronix.i2pmessenger.data.repository.MessageRepository
 import ru.servertronix.i2pmessenger.i2p.I2PManager
-import java.security.MessageDigest
 
 class ChatActivity : AppCompatActivity() {
 
@@ -47,7 +46,7 @@ class ChatActivity : AppCompatActivity() {
                 Log.d("ChatActivity", "🔍 [UI] пропускаем presence: $msg")
                 return@runOnUiThread
             }
-            val senderBase32 = extractBase32FromBase64(sender)
+            val senderBase32 = I2PManager.base64ToBase32(sender)
             val cleanSender = senderBase32.removeSuffix(".b32.i2p")
             val cleanMyAddress = myAddress.removeSuffix(".b32.i2p")
             val isMine = cleanSender == cleanMyAddress
@@ -196,44 +195,6 @@ class ChatActivity : AppCompatActivity() {
             }
             else -> super.onOptionsItemSelected(item)
         }
-    }
-
-    private fun extractBase32FromBase64(base64: String): String {
-        val clean = base64.trim()
-        var standardBase64 = clean
-            .replace('-', '+')
-            .replace('~', '/')
-        when (standardBase64.length % 4) {
-            2 -> standardBase64 += "=="
-            3 -> standardBase64 += "="
-            0 -> { /* ok */ }
-        }
-        val destination = android.util.Base64.decode(standardBase64, android.util.Base64.DEFAULT)
-        val digest = MessageDigest.getInstance("SHA-256").digest(destination)
-        return encodeBase32(digest)
-    }
-
-    private fun encodeBase32(bytes: ByteArray): String {
-        val alphabet = "abcdefghijklmnopqrstuvwxyz234567"
-        val result = StringBuilder()
-        var i = 0
-        var buffer = 0
-        var bitsLeft = 0
-        while (i < bytes.size) {
-            buffer = (buffer shl 8) or (bytes[i].toInt() and 0xFF)
-            bitsLeft += 8
-            while (bitsLeft >= 5) {
-                val index = (buffer shr (bitsLeft - 5)) and 0x1F
-                result.append(alphabet[index])
-                bitsLeft -= 5
-            }
-            i++
-        }
-        if (bitsLeft > 0) {
-            val index = (buffer shl (5 - bitsLeft)) and 0x1F
-            result.append(alphabet[index])
-        }
-        return result.toString()
     }
 
     override fun onDestroy() {
